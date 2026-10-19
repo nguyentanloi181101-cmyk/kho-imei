@@ -23,7 +23,7 @@ input,select,textarea{width:100%;box-sizing:border-box;padding:12px;font-size:17
 .row{display:flex;gap:8px;margin-bottom:8px}.row>*{flex:1}
 button.b{padding:11px;border:0;border-radius:10px;background:var(--acb);color:var(--ac);font-size:15px;font-weight:600}
 button.d{background:var(--erb);color:var(--er)}
-video{width:100%;max-height:240px;border-radius:10px;background:#000;margin-bottom:8px;object-fit:cover}
+#vw{margin-bottom:8px}#vin{overflow:hidden;border-radius:10px;background:#000}video{width:100%;max-height:260px;display:block;object-fit:cover;transform-origin:center}#zm{margin:8px 0 0;padding:0}
 .hint{font-size:13px;color:var(--mu);margin:2px 0 8px}
 #res{border-radius:14px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;text-align:center}
 .ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
@@ -56,7 +56,7 @@ h3{font-size:15px;margin:12px 0 6px}
  <div class="cd">
   <input id="mdl" placeholder="Tên máy / model (không bắt buộc)">
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
-  <video id="vd" playsinline muted hidden></video>
+  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video></div><input type="range" id="zm" min="1" max="5" step="0.1" value="1" aria-label="Zoom"></div>
   <div class="row"><button class="b" id="cam">📷 Quét bằng camera</button><button class="b" id="kb">⌨ Bàn phím số</button></div>
   <div class="row"><button class="b" id="pb" style="background:var(--bg);color:var(--mu)">📸 Chụp ảnh (nếu camera trực tiếp lỗi)</button></div>
   <input type="file" id="ph" accept="image/*" capture="environment" hidden>
@@ -139,25 +139,42 @@ $('rf').onclick=()=>load();
 $('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').value=c.url||'';$('ck').value=c.key||''};
 $('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim(),key:$('ck').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
 
-/* Camera quét liên tục */
-let stream,timer,det,zx,last='',lt=0;
-function stopCam(){clearInterval(timer);try{zx&&zx.reset()}catch(e){}zx=null;stream&&stream.getTracks&&stream.getTracks().forEach(t=>t.stop());stream=null;$('vd').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
+/* Camera quét liên tục + zoom */
+let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0;const cv=document.createElement('canvas');
+function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
 function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();submit(m)}}
 const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
+function setZoom(z){zm=z;if(hw){trk.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{})}else $('vd').style.transform='scale('+z+')'}
+$('zm').oninput=e=>setZoom(+e.target.value);
+async function tick(){
+  const v=$('vd');if(dbusy||!v.videoWidth)return;dbusy=1;
+  try{
+    const z=hw?1:zm,w=v.videoWidth/z,h=v.videoHeight/z;
+    cv.width=Math.round(Math.min(1600,w));cv.height=Math.round(cv.width*h/w);
+    cv.getContext('2d').drawImage(v,(v.videoWidth-w)/2,(v.videoHeight-h)/2,w,h,0,0,cv.width,cv.height);
+    if(window.BarcodeDetector){rd=rd||new BarcodeDetector();for(const b of await rd.detect(cv))onCode(b.rawValue)}
+    else{
+      if(!zr){zr=new ZXing.MultiFormatReader();const hn=new Map();hn.set(ZXing.DecodeHintType.TRY_HARDER,true);zr.setHints(hn)}
+      const bm=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)));
+      try{onCode(zr.decode(bm).getText())}catch(e){}
+    }
+  }catch(e){}
+  dbusy=0;
+}
 $('cam').onclick=async()=>{
   if(stream)return stopCam();
-  const v=$('vd');
-  if('BarcodeDetector' in window){
-    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-      v.srcObject=stream;v.hidden=false;await v.play();det=new BarcodeDetector();$('cam').textContent='⏹ Tắt camera';
-      timer=setInterval(async()=>{try{for(const b of await det.detect(v))onCode(b.rawValue)}catch(e){}},250)}
-    catch(e){camErr(e)}
-    return;
-  }
-  if(!window.ZXing){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
-  try{zx=new ZXing.BrowserMultiFormatReader();v.hidden=false;stream=true;$('cam').textContent='⏹ Tắt camera';
-    zx.decodeFromConstraints({video:{facingMode:'environment'}},'vd',r=>{if(r)onCode(r.getText())}).catch(camErr)}
-  catch(e){camErr(e)}
+  if(!window.BarcodeDetector&&!window.ZXing){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+    const v=$('vd');v.srcObject=stream;await v.play();$('vw').hidden=false;
+    trk=stream.getVideoTracks()[0];const cp=(trk.getCapabilities&&trk.getCapabilities())||{};
+    try{await trk.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
+    hw=!!cp.zoom;const z=$('zm');
+    z.min=hw?cp.zoom.min:1;z.max=hw?Math.min(cp.zoom.max,8):5;z.step=hw?(cp.zoom.step||0.1):0.1;z.value=z.min;
+    v.style.transform='';zm=+z.min;
+    $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,200);
+    $('hint').textContent='Kéo thanh zoom bên dưới khung camera để phóng to mã vạch nhỏ. Đưa máy xa vừa đủ để lấy nét.';
+  }catch(e){camErr(e)}
 };
 $('pb').onclick=()=>$('ph').click();
 $('ph').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const u=URL.createObjectURL(f);
