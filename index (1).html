@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kho IMEI</title>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<style>
+:root{--bg:#f4f5f7;--cd:#fff;--tx:#14171c;--mu:#6b7280;--bd:#e2e5ea;--ac:#2563eb;--ok:#16a34a;--wa:#d97706;--er:#dc2626;--okb:#dcfce7;--wab:#fef3c7;--erb:#fee2e2;--acb:#dbeafe}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0f1115;--cd:#1a1d23;--tx:#eef0f3;--mu:#9aa1ad;--bd:#2c313a;--ac:#60a5fa;--ok:#4ade80;--wa:#fbbf24;--er:#f87171;--okb:#12301d;--wab:#35290a;--erb:#3a1616;--acb:#172a4a}}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+.w{max-width:640px;margin:0 auto;padding:12px}
+.hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+h1{font-size:20px;margin:0}
+.st{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.st div{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:8px;text-align:center}
+.st b{display:block;font-size:22px}.st span{font-size:12px;color:var(--mu)}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
+.tabs button{flex:1 0 auto;padding:9px 12px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);border-radius:10px;font-size:15px}
+.tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+.cd{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
+input,select,textarea{width:100%;box-sizing:border-box;padding:12px;font-size:17px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);margin-bottom:8px;font-family:inherit}
+#sc{font-size:20px;letter-spacing:1px;border:2px solid var(--ac)}
+.row{display:flex;gap:8px;margin-bottom:8px}.row>*{flex:1}
+button.b{padding:11px;border:0;border-radius:10px;background:var(--acb);color:var(--ac);font-size:15px;font-weight:600}
+button.d{background:var(--erb);color:var(--er)}
+video{width:100%;max-height:240px;border-radius:10px;background:#000;margin-bottom:8px;object-fit:cover}
+.hint{font-size:13px;color:var(--mu);margin:2px 0 8px}
+#res{border-radius:14px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;text-align:center}
+.ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
+#res small{display:block;font-weight:400;font-size:14px;opacity:.9}
+.it{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-left:4px solid var(--bd);background:var(--cd);border-radius:8px;margin-bottom:5px;font-size:14px}
+.it.ok{border-color:var(--ok);color:var(--tx);background:var(--cd)}.it.wa{border-color:var(--wa);color:var(--tx);background:var(--cd)}.it.er{border-color:var(--er);color:var(--tx);background:var(--cd)}
+.it span{color:var(--mu);text-align:right}
+h3{font-size:15px;margin:12px 0 6px}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600}
+.pill.ok{background:var(--okb)}.pill.wa{background:var(--wab)}.pill.er{background:var(--erb)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chips button{padding:6px 12px;border-radius:99px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);font-size:14px}
+.chips button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+[hidden]{display:none!important}
+</style></head><body><div class="w">
+<div class="hd"><h1>📦 Kho IMEI</h1><div class="row" style="margin:0;flex:0"><button class="b" id="rf">↻</button><button class="b" id="gear">⚙</button></div></div>
+
+<div class="cd" id="cfg" hidden>
+ <h3 style="margin-top:0">Kết nối Google Sheet</h3>
+ <input id="cu" placeholder="Link Apps Script (kết thúc bằng /exec)" autocapitalize="off">
+ <input id="ck" placeholder="Mật khẩu (nếu có đặt trong Code.gs)" autocapitalize="off">
+ <button class="b" id="cs" style="width:100%">Lưu và kết nối</button>
+ <div class="hint">Cài đặt này chỉ lưu trên máy này, cần nhập một lần.</div>
+</div>
+
+<div class="st" id="st"></div>
+<div class="tabs" id="tabs"></div>
+
+<div id="scan">
+ <div class="cd">
+  <input id="mdl" placeholder="Tên máy / model (không bắt buộc)">
+  <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
+  <video id="vd" playsinline muted hidden></video>
+  <div class="row"><button class="b" id="cam">📷 Quét bằng camera</button><button class="b" id="kb">⌨ Bàn phím số</button></div>
+  <div class="row"><button class="b" id="pb" style="background:var(--bg);color:var(--mu)">📸 Chụp ảnh (nếu camera trực tiếp lỗi)</button></div>
+  <input type="file" id="ph" accept="image/*" capture="environment" hidden>
+  <div class="hint" id="hint"></div>
+ </div>
+ <div id="res" class="cd">Sẵn sàng quét</div>
+ <div id="chk" hidden></div>
+ <h3>Lịch sử quét</h3><div id="log"></div>
+</div>
+
+<div id="lst" hidden>
+ <input id="q" placeholder="Tìm IMEI hoặc tên máy…">
+ <div class="chips" id="chips"></div>
+ <div id="rows"></div>
+ <div class="cd">
+  <h3 style="margin-top:0">Dán nhiều IMEI cùng lúc</h3>
+  <select id="bm"><option value="in">Nhập kho</option><option value="sold">Đánh dấu đã bán</option><option value="out">Xuất kho</option></select>
+  <textarea id="bt" rows="4" placeholder="Mỗi dòng một IMEI"></textarea>
+  <button class="b" id="bg" style="width:100%">Áp dụng</button>
+  <p class="hint" id="bmsg"></p>
+ </div>
+</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let db={},mode='in',log=[],chk={},flt='all',busy=0,queue=[];
+const cfg=()=>{try{return JSON.parse(localStorage.getItem('kho_cfg')||'{}')}catch(e){return{}}};
+async function api(body){
+  const c=cfg();if(!c.url)throw new Error('Chưa cài link Apps Script (bấm ⚙)');
+  const r=await fetch(c.url,{method:'POST',body:JSON.stringify({...body,key:c.key||''})});
+  const j=await r.json();if(j.err)throw new Error(j.err);return j.data;
+}
+const fromRec=r=>({model:r[1],s:r[2],tin:r[3],tsold:r[4],tout:r[5]});
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=t=>t?new Date(t).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+const TABS=[['in','Nhập kho'],['sold','Đã bán'],['out','Xuất kho'],['chk','Kiểm kho'],['list','Danh sách']];
+const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',sold:'Đánh dấu máy đã bán nhưng chưa giao/xuất khỏi kho.',out:'Quét khi máy rời kho. Máy “đã bán” sẽ chuyển sang “đã xuất”.',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy thiếu và máy đã bán chưa xuất.'};
+const ST={in:['Tồn kho','ok'],sold:['Đã bán, chưa xuất','wa'],out:['Đã xuất','er']};
+
+async function load(){
+  try{const rows=await api({a:'getAll'});db={};rows.forEach(r=>db[r[0]]=fromRec(r));render()}
+  catch(e){$('res').className='cd er';$('res').textContent='Không tải được dữ liệu: '+(e.message||e)}
+}
+function chkProc(i){
+  const r=db[i],R=(c,m)=>({c,m,i});
+  if(chk[i]&&r)return R('wa','Đã quét kiểm rồi');
+  chk[i]=1;
+  if(!r)return R('er','Không có trong hệ thống');
+  if(r.s==='in')return R('ok','Tồn kho – khớp');
+  if(r.s==='sold')return R('wa','ĐÃ BÁN – CHƯA XUẤT');
+  return R('er','Đã xuất nhưng vẫn còn máy!');
+}
+let ac;
+function beep(c){try{ac=ac||new AudioContext();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=c==='ok'?880:c==='wa'?520:220;g.gain.value=.12;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+(c==='ok'?.08:.25))}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(c==='ok'?30:[80,40,80])}catch(e){}}
+function show(r){
+  log.unshift({...r,t:Date.now()});log=log.slice(0,60);beep(r.c);
+  $('res').className='cd '+r.c;$('res').innerHTML=esc(r.m)+'<small>'+esc(r.i)+'</small>';render();
+}
+function submit(raw){
+  const i=(String(raw).match(/\d{15}/)||[])[0];
+  if(!i)return show({c:'er',m:'IMEI không hợp lệ (cần 15 số)',i:String(raw).slice(0,20)});
+  if(mode==='chk')return show(chkProc(i));
+  queue.push([i,mode,$('mdl').value.trim()]);
+  $('res').className='cd';$('res').innerHTML='Đang xử lý… ('+queue.length+')<small>'+i+'</small>';
+  pump();
+}
+async function pump(){
+  if(busy)return;busy=1;
+  while(queue.length){const [i,m,md]=queue.shift();
+    try{const r=await api({a:'scan',i,m,model:md});if(r.r)db[i]=fromRec(r.r);show(r)}
+    catch(e){show({c:'er',m:'Lỗi: '+(e.message||e),i})}}
+  busy=0;
+}
+function scanIn(){const v=$('sc').value.trim();if(v)submit(v);$('sc').value='';$('sc').focus()}
+$('sc').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();scanIn()}});
+$('sc').addEventListener('input',()=>{if(/^\d{15}$/.test($('sc').value.trim()))scanIn()});
+$('kb').onclick=()=>{const s=$('sc');s.inputMode=s.inputMode==='none'?'numeric':'none';s.blur();s.focus()};
+$('rf').onclick=()=>load();
+$('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').value=c.url||'';$('ck').value=c.key||''};
+$('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim(),key:$('ck').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
+
+/* Camera quét liên tục */
+let stream,timer,det,zx,last='',lt=0;
+function stopCam(){clearInterval(timer);try{zx&&zx.reset()}catch(e){}zx=null;stream&&stream.getTracks&&stream.getTracks().forEach(t=>t.stop());stream=null;$('vd').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
+function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();submit(m)}}
+const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
+$('cam').onclick=async()=>{
+  if(stream)return stopCam();
+  const v=$('vd');
+  if('BarcodeDetector' in window){
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      v.srcObject=stream;v.hidden=false;await v.play();det=new BarcodeDetector();$('cam').textContent='⏹ Tắt camera';
+      timer=setInterval(async()=>{try{for(const b of await det.detect(v))onCode(b.rawValue)}catch(e){}},250)}
+    catch(e){camErr(e)}
+    return;
+  }
+  if(!window.ZXing){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
+  try{zx=new ZXing.BrowserMultiFormatReader();v.hidden=false;stream=true;$('cam').textContent='⏹ Tắt camera';
+    zx.decodeFromConstraints({video:{facingMode:'environment'}},'vd',r=>{if(r)onCode(r.getText())}).catch(camErr)}
+  catch(e){camErr(e)}
+};
+$('pb').onclick=()=>$('ph').click();
+$('ph').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const u=URL.createObjectURL(f);
+  try{const r=await new ZXing.BrowserMultiFormatReader().decodeFromImageUrl(u);submit(r.getText())}
+  catch(x){$('hint').textContent='Không đọc được mã vạch trong ảnh. Chụp gần, rõ nét, chỉ lấy mã vạch IMEI.';beep('er')}
+  URL.revokeObjectURL(u)};
+
+function setMode(m){
+  mode=m;$('scan').hidden=m==='list';$('lst').hidden=m!=='list';
+  $('chk').hidden=m!=='chk';$('mdl').hidden=m!=='in';$('hint').textContent=HINT[m]||'';
+  if(m==='chk'){chk={};log=[]}
+  if(m==='chk'||m==='list')load();
+  $('res').className='cd';$('res').textContent='Sẵn sàng quét';
+  render();if(m!=='list'&&!stream)$('sc').focus();
+}
+const all=()=>Object.entries(db);
+function item(i,r,extra){const s=ST[r.s];return `<div class="it ${s[1]}"><div><b>${i}</b><br>${esc(r.model)||'—'}</div><span><span class="pill ${s[1]}">${s[0]}</span><br>${extra||''}</span></div>`}
+function render(){
+  const a=all(),n=k=>a.filter(([,r])=>r.s===k).length;
+  $('st').innerHTML=`<div><b>${n('in')}</b><span>Tồn kho</span></div><div><b style="color:var(--wa)">${n('sold')}</b><span>Bán chưa xuất</span></div><div><b>${n('out')}</b><span>Đã xuất</span></div>`;
+  $('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===mode?'on':''}" data-m="${t[0]}">${t[1]}</button>`).join('');
+  $('log').innerHTML=log.slice(0,30).map(l=>`<div class="it ${l.c}"><b>${esc(l.i)}</b><span>${esc(l.m)}<br>${fmt(l.t)}</span></div>`).join('')||'<p class="hint">Chưa có lượt quét nào.</p>';
+  if(mode==='chk'){
+    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),sold=a.filter(([,r])=>r.s==='sold'),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
+    $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div><div><b style="color:var(--wa)">${sold.length}</b><span>Bán chưa xuất</span></div></div>
+    <h3>Máy bán chưa xuất (${sold.length})</h3>${sold.map(([i,r])=>item(i,r,chk[i]?'còn tại kho ✓':'chưa quét')).join('')||'<p class="hint">Không có.</p>'}
+    <h3>Máy tồn nhưng chưa quét thấy (${miss.length})</h3>${miss.slice(0,100).map(([i,r])=>item(i,r)).join('')||'<p class="hint">Không có – kho khớp.</p>'}
+    ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
+    <button class="b d" id="rc" style="width:100%;margin-top:8px">Bắt đầu phiên kiểm mới</button>`;
+  }
+  if(mode==='list'){
+    $('chips').innerHTML=[['all','Tất cả'],['in','Tồn kho'],['sold','Bán chưa xuất'],['out','Đã xuất']].map(c=>`<button class="${flt===c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('');
+    const q=$('q').value.trim().toLowerCase(),rows=a.filter(([i,r])=>(flt==='all'||r.s===flt)&&(!q||i.includes(q)||(r.model||'').toLowerCase().includes(q))).sort((x,y)=>(y[1].tin||0)-(x[1].tin||0));
+    $('rows').innerHTML=`<p class="hint">${rows.length} máy</p>`+rows.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tout||r.tsold||r.tin))).join('');
+  }
+}
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.dataset.m)setMode(t.dataset.m);
+  if(t.dataset.f){flt=t.dataset.f;render()}
+  if(t.id==='rc'){chk={};log=[];load()}
+});
+$('q').oninput=render;
+$('bg').onclick=async()=>{
+  const list=$('bt').value.split(/\s+/).filter(Boolean);if(!list.length)return;
+  $('bmsg').textContent='Đang xử lý '+list.length+' IMEI…';
+  try{const res=await api({a:'bulk',list,m:$('bm').value,model:$('mdl').value.trim()}),c={ok:0,wa:0,er:0};
+    res.forEach(r=>{c[r.c]++;if(r.r)db[r.i]=fromRec(r.r)});
+    $('bt').value='';$('bmsg').textContent=`Thành công ${c.ok} · Bỏ qua ${c.wa} · Lỗi ${c.er}`;render()}
+  catch(e){$('bmsg').textContent='Lỗi: '+(e.message||e)}
+};
+if(!cfg().url){$('cfg').hidden=false;$('res').textContent='Nhập link Apps Script ở trên để bắt đầu'}else load();
+setMode('in');
+</script></body></html>
