@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Kho IMEI</title>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js"></script>
 <style>
 :root{--bg:#f4f5f7;--cd:#fff;--tx:#14171c;--mu:#6b7280;--bd:#e2e5ea;--ac:#2563eb;--ok:#16a34a;--wa:#d97706;--er:#dc2626;--okb:#dcfce7;--wab:#fef3c7;--erb:#fee2e2;--acb:#dbeafe}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0f1115;--cd:#1a1d23;--tx:#eef0f3;--mu:#9aa1ad;--bd:#2c313a;--ac:#60a5fa;--ok:#4ade80;--wa:#fbbf24;--er:#f87171;--okb:#12301d;--wab:#35290a;--erb:#3a1616;--acb:#172a4a}}
@@ -146,24 +146,39 @@ function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||D
 const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
 function setZoom(z){zm=z;if(hw){trk.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{})}else $('vd').style.transform='scale('+z+')'}
 $('zm').oninput=e=>setZoom(+e.target.value);
+const ANG=[0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170],rc=document.createElement('canvas');let ai=0;
+const WOPT={formats:['Code128','Code39','ITF','QRCode'],tryHarder:true,tryRotate:false,tryDownscale:true,maxNumberOfSymbols:3};
+function rot(src,deg){
+  if(!deg)return src;
+  const r=deg*Math.PI/180,c=Math.abs(Math.cos(r)),s=Math.abs(Math.sin(r));
+  rc.width=Math.round(src.width*c+src.height*s);rc.height=Math.round(src.width*s+src.height*c);
+  const x=rc.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,rc.width,rc.height);
+  x.translate(rc.width/2,rc.height/2);x.rotate(r);x.drawImage(src,-src.width/2,-src.height/2);return rc;
+}
+async function decode(c){
+  const d=c.getContext('2d').getImageData(0,0,c.width,c.height);
+  const rs=await ZXingWASM.readBarcodes(d,WOPT);
+  return rs.map(r=>r.text);
+}
+function pick(list){return list.map(x=>(String(x).match(/\d{15}/)||[])[0]).find(Boolean)}
 async function tick(){
   const v=$('vd');if(dbusy||!v.videoWidth)return;dbusy=1;
   try{
     const z=hw?1:zm,w=v.videoWidth/z,h=v.videoHeight/z;
-    cv.width=Math.round(Math.min(1600,w));cv.height=Math.round(cv.width*h/w);
+    cv.width=Math.round(Math.min(1000,w));cv.height=Math.round(cv.width*h/w);
     cv.getContext('2d').drawImage(v,(v.videoWidth-w)/2,(v.videoHeight-h)/2,w,h,0,0,cv.width,cv.height);
-    if(window.BarcodeDetector){rd=rd||new BarcodeDetector();for(const b of await rd.detect(cv))onCode(b.rawValue)}
-    else{
-      if(!zr){zr=new ZXing.MultiFormatReader();const hn=new Map();hn.set(ZXing.DecodeHintType.TRY_HARDER,true);zr.setHints(hn)}
-      const bm=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)));
-      try{onCode(zr.decode(bm).getText())}catch(e){}
+    if(window.ZXingWASM){
+      const deg=ANG[ai++%ANG.length],m=pick(await decode(rot(cv,deg)));
+      if(m)onCode(m);
+    }else if(window.BarcodeDetector){
+      rd=rd||new BarcodeDetector();for(const b of await rd.detect(cv))onCode(b.rawValue);
     }
   }catch(e){}
   dbusy=0;
 }
 $('cam').onclick=async()=>{
   if(stream)return stopCam();
-  if(!window.BarcodeDetector&&!window.ZXing){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
+  if(!window.ZXingWASM&&!window.BarcodeDetector){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
     const v=$('vd');v.srcObject=stream;await v.play();$('vw').hidden=false;
@@ -172,16 +187,24 @@ $('cam').onclick=async()=>{
     hw=!!cp.zoom;const z=$('zm');
     z.min=hw?cp.zoom.min:1;z.max=hw?Math.min(cp.zoom.max,8):5;z.step=hw?(cp.zoom.step||0.1):0.1;z.value=z.min;
     v.style.transform='';zm=+z.min;
-    $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,200);
-    $('hint').textContent='Kéo thanh zoom bên dưới khung camera để phóng to mã vạch nhỏ. Đưa máy xa vừa đủ để lấy nét.';
+    $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,120);
+    $('hint').textContent='Đưa MỘT mã vạch vào giữa khung, xoay máy cho các vạch đứng thẳng, kéo zoom cho mã vạch to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
   }catch(e){camErr(e)}
 };
 $('pb').onclick=()=>$('ph').click();
-$('ph').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const u=URL.createObjectURL(f);
-  try{const r=await new ZXing.BrowserMultiFormatReader().decodeFromImageUrl(u);submit(r.getText())}
-  catch(x){$('hint').textContent='Không đọc được mã vạch trong ảnh. Chụp gần, rõ nét, chỉ lấy mã vạch IMEI.';beep('er')}
-  URL.revokeObjectURL(u)};
-
+$('ph').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(!window.ZXingWASM){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
+  $('hint').textContent='Đang đọc ảnh…';
+  try{
+    const bmp=await createImageBitmap(f),k=Math.min(1,1800/Math.max(bmp.width,bmp.height));
+    const src=document.createElement('canvas');src.width=Math.round(bmp.width*k);src.height=Math.round(bmp.height*k);
+    src.getContext('2d').drawImage(bmp,0,0,src.width,src.height);
+    let m;for(const deg of ANG){m=pick(await decode(rot(src,deg)));if(m)break}
+    if(m){$('hint').textContent='';submit(m)}
+    else{$('hint').textContent='Không đọc được mã vạch trong ảnh. Chụp gần hơn, rõ nét, chỉ lấy một mã vạch IMEI.';beep('er')}
+  }catch(x){$('hint').textContent='Không đọc được ảnh: '+((x&&x.message)||x);beep('er')}
+};
 function setMode(m){
   mode=m;$('scan').hidden=m==='list';$('lst').hidden=m!=='list';
   $('chk').hidden=m!=='chk';$('mdl').hidden=m!=='in';$('hint').textContent=HINT[m]||'';
