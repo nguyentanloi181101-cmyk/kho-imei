@@ -20,10 +20,20 @@ h1{font-size:20px;margin:0}
 .cd{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
 input,select,textarea{width:100%;box-sizing:border-box;padding:12px;font-size:17px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);margin-bottom:8px;font-family:inherit}
 #sc{font-size:20px;letter-spacing:1px;border:2px solid var(--ac)}
-.row{display:flex;gap:8px;margin-bottom:8px}.row>*{flex:1}
+.row{display:flex;gap:8px;margin-bottom:8px}.row>*{flex:1;min-width:0}
+.row input,.row select{margin-bottom:0}
 button.b{padding:11px;border:0;border-radius:10px;background:var(--acb);color:var(--ac);font-size:15px;font-weight:600}
 button.d{background:var(--erb);color:var(--er)}
-#vw{margin-bottom:8px}#vin{overflow:hidden;border-radius:10px;background:#000}video{width:100%;max-height:260px;display:block;object-fit:cover;transform-origin:center}#zm{margin:8px 0 0;padding:0}
+#vw{margin-bottom:8px}#vin{position:relative;overflow:hidden;border-radius:10px;background:#000}
+video{width:100%;height:240px;display:block;object-fit:cover;transform-origin:center}#zm{margin:8px 0 0;padding:0}
+.fr{position:absolute;left:8%;right:8%;top:25%;bottom:25%;pointer-events:none}
+.fr i{position:absolute;width:26px;height:26px;border:3px solid #fff;opacity:.9}
+.fr i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0;border-radius:10px 0 0 0}
+.fr i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0;border-radius:0 10px 0 0}
+.fr i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0;border-radius:0 0 0 10px}
+.fr i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0;border-radius:0 0 10px 0}
+.fr u{position:absolute;left:-4%;right:-4%;top:50%;height:3px;margin-top:-1.5px;background:#ff2d2d;box-shadow:0 0 8px 2px rgba(255,45,45,.7);border-radius:2px;animation:ln 1.2s ease-in-out infinite}
+@keyframes ln{50%{opacity:.45}}
 .hint{font-size:13px;color:var(--mu);margin:2px 0 8px}
 #res{border-radius:14px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;text-align:center}
 .ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
@@ -54,9 +64,16 @@ h3{font-size:15px;margin:12px 0 6px}
 
 <div id="scan">
  <div class="cd">
-  <input id="mdl" placeholder="Tên máy / model (không bắt buộc)">
+  <div id="mdw">
+   <input id="m1" placeholder="Tên máy (vd: iPhone 13)">
+   <div class="row" style="margin-bottom:8px">
+    <select id="m2"><option value="">RAM</option><option>4</option><option>6</option><option>8</option><option>12</option></select>
+    <select id="m3"><option value="">ROM</option><option>64</option><option>128</option><option>256</option><option>512</option></select>
+    <input id="m4" placeholder="Màu">
+   </div>
+  </div>
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
-  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video></div><input type="range" id="zm" min="1" max="5" step="0.1" value="1" aria-label="Zoom"></div>
+  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u></div></div><input type="range" id="zm" min="1" max="5" step="0.1" value="1" aria-label="Zoom"></div>
   <div class="row"><button class="b" id="cam">📷 Quét bằng camera</button><button class="b" id="kb">⌨ Bàn phím số</button></div>
   <div class="row"><button class="b" id="pb" style="background:var(--bg);color:var(--mu)">📸 Chụp ảnh (nếu camera trực tiếp lỗi)</button></div>
   <input type="file" id="ph" accept="image/*" capture="environment" hidden>
@@ -82,12 +99,18 @@ h3{font-size:15px;margin:12px 0 6px}
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let db={},mode='in',log=[],chk={},flt='all',busy=0,queue=[];
+let db={},mode='in',log=[],chk={},flt='all',busy=0,queue=[],bt0=0;
 const cfg=()=>{try{return JSON.parse(localStorage.getItem('kho_cfg')||'{}')}catch(e){return{}}};
 async function api(body){
   const c=cfg();if(!c.url)throw new Error('Chưa cài link Apps Script (bấm ⚙)');
   const r=await fetch(c.url,{method:'POST',body:JSON.stringify({...body,key:c.key||''})});
   const j=await r.json();if(j.err)throw new Error(j.err);return j.data;
+}
+/* Gộp 4 ô thành 1 chuỗi model */
+function mdlStr(){
+  const n=$('m1').value.trim(),ra=$('m2').value,ro=$('m3').value,c=$('m4').value.trim();
+  const mem=ra&&ro?ra+'/'+ro+'GB':ra?ra+'GB RAM':ro?ro+'GB':'';
+  return [n,mem,c].filter(Boolean).join(' · ');
 }
 const fromRec=r=>({model:r[1],s:r[2],tin:r[3],tsold:r[4],tout:r[5]});
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -110,17 +133,22 @@ function chkProc(i){
   return R('er','Đã xuất nhưng vẫn còn máy!');
 }
 let ac;
-function beep(c){try{ac=ac||new AudioContext();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=c==='ok'?880:c==='wa'?520:220;g.gain.value=.12;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+(c==='ok'?.08:.25))}catch(e){}
-  try{navigator.vibrate&&navigator.vibrate(c==='ok'?30:[80,40,80])}catch(e){}}
+function beep(c){
+  try{ac=ac||new AudioContext();if(ac.state==='suspended')ac.resume();
+    const o=ac.createOscillator(),g=ac.createGain(),big=c==='ok';
+    o.type=big?'square':'sine';o.frequency.value=big?1800:c==='wa'?520:220;
+    g.gain.value=big?1:.3;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+(big?.22:.25))}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(c==='ok'?60:[80,40,80])}catch(e){}}
 function show(r){
-  log.unshift({...r,t:Date.now()});log=log.slice(0,60);beep(r.c);
+  log.unshift({...r,t:Date.now()});log=log.slice(0,60);
+  if(!(r.c==='ok'&&Date.now()-bt0<4000))beep(r.c);
   $('res').className='cd '+r.c;$('res').innerHTML=esc(r.m)+'<small>'+esc(r.i)+'</small>';render();
 }
 function submit(raw){
   const i=(String(raw).match(/\d{15}/)||[])[0];
   if(!i)return show({c:'er',m:'IMEI không hợp lệ (cần 15 số)',i:String(raw).slice(0,20)});
   if(mode==='chk')return show(chkProc(i));
-  queue.push([i,mode,$('mdl').value.trim()]);
+  queue.push([i,mode,mdlStr()]);
   $('res').className='cd';$('res').innerHTML='Đang xử lý… ('+queue.length+')<small>'+i+'</small>';
   pump();
 }
@@ -142,7 +170,7 @@ $('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('c
 /* Camera quét liên tục + zoom */
 let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0;const cv=document.createElement('canvas');
 function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
-function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();submit(m)}}
+function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();bt0=Date.now();beep('ok');submit(m)}}
 const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
 function setZoom(z){zm=z;if(hw){trk.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{})}else $('vd').style.transform='scale('+z+')'}
 $('zm').oninput=e=>setZoom(+e.target.value);
@@ -164,9 +192,11 @@ function pick(list){return list.map(x=>(String(x).match(/\d{15}/)||[])[0]).find(
 async function tick(){
   const v=$('vd');if(dbusy||!v.videoWidth)return;dbusy=1;
   try{
+    /* chỉ đọc vùng trong khung (giữa, quanh vạch ngang) */
     const z=hw?1:zm,w=v.videoWidth/z,h=v.videoHeight/z;
-    cv.width=Math.round(Math.min(1000,w));cv.height=Math.round(cv.width*h/w);
-    cv.getContext('2d').drawImage(v,(v.videoWidth-w)/2,(v.videoHeight-h)/2,w,h,0,0,cv.width,cv.height);
+    const sx=(v.videoWidth-w)/2+w*.08,sw=w*.84,sy=(v.videoHeight-h)/2+h*.25,sh=h*.5;
+    cv.width=Math.round(Math.min(1000,sw));cv.height=Math.round(cv.width*sh/sw);
+    cv.getContext('2d').drawImage(v,sx,sy,sw,sh,0,0,cv.width,cv.height);
     if(window.ZXingWASM){
       const deg=ANG[ai++%ANG.length],m=pick(await decode(rot(cv,deg)));
       if(m)onCode(m);
@@ -178,6 +208,7 @@ async function tick(){
 }
 $('cam').onclick=async()=>{
   if(stream)return stopCam();
+  try{ac=ac||new AudioContext();ac.resume()}catch(e){}
   if(!window.ZXingWASM&&!window.BarcodeDetector){$('hint').textContent='Không tải được bộ giải mã. Hãy dùng súng quét hoặc bàn phím.';return}
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
@@ -188,7 +219,7 @@ $('cam').onclick=async()=>{
     z.min=hw?cp.zoom.min:1;z.max=hw?Math.min(cp.zoom.max,8):5;z.step=hw?(cp.zoom.step||0.1):0.1;z.value=z.min;
     v.style.transform='';zm=+z.min;
     $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,120);
-    $('hint').textContent='Đưa MỘT mã vạch vào giữa khung, xoay máy cho các vạch đứng thẳng, kéo zoom cho mã vạch to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
+    $('hint').textContent='Đặt vạch đỏ nằm ngang lên MỘT mã vạch IMEI, kéo zoom cho mã to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
   }catch(e){camErr(e)}
 };
 $('pb').onclick=()=>$('ph').click();
@@ -201,13 +232,13 @@ $('ph').onchange=async e=>{
     const src=document.createElement('canvas');src.width=Math.round(bmp.width*k);src.height=Math.round(bmp.height*k);
     src.getContext('2d').drawImage(bmp,0,0,src.width,src.height);
     let m;for(const deg of ANG){m=pick(await decode(rot(src,deg)));if(m)break}
-    if(m){$('hint').textContent='';submit(m)}
+    if(m){$('hint').textContent='';bt0=Date.now();beep('ok');submit(m)}
     else{$('hint').textContent='Không đọc được mã vạch trong ảnh. Chụp gần hơn, rõ nét, chỉ lấy một mã vạch IMEI.';beep('er')}
   }catch(x){$('hint').textContent='Không đọc được ảnh: '+((x&&x.message)||x);beep('er')}
 };
 function setMode(m){
   mode=m;$('scan').hidden=m==='list';$('lst').hidden=m!=='list';
-  $('chk').hidden=m!=='chk';$('mdl').hidden=m!=='in';$('hint').textContent=HINT[m]||'';
+  $('chk').hidden=m!=='chk';$('mdw').hidden=m!=='in';$('hint').textContent=HINT[m]||'';
   if(m==='chk'){chk={};log=[]}
   if(m==='chk'||m==='list')load();
   $('res').className='cd';$('res').textContent='Sẵn sàng quét';
@@ -244,7 +275,7 @@ $('q').oninput=render;
 $('bg').onclick=async()=>{
   const list=$('bt').value.split(/\s+/).filter(Boolean);if(!list.length)return;
   $('bmsg').textContent='Đang xử lý '+list.length+' IMEI…';
-  try{const res=await api({a:'bulk',list,m:$('bm').value,model:$('mdl').value.trim()}),c={ok:0,wa:0,er:0};
+  try{const res=await api({a:'bulk',list,m:$('bm').value,model:mdlStr()}),c={ok:0,wa:0,er:0};
     res.forEach(r=>{c[r.c]++;if(r.r)db[r.i]=fromRec(r.r)});
     $('bt').value='';$('bmsg').textContent=`Thành công ${c.ok} · Bỏ qua ${c.wa} · Lỗi ${c.er}`;render()}
   catch(e){$('bmsg').textContent='Lỗi: '+(e.message||e)}
