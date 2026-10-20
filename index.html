@@ -73,7 +73,7 @@ h3{font-size:15px;margin:12px 0 6px}
    </div>
   </div>
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
-  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u></div></div><input type="range" id="zm" min="1" max="5" step="0.1" value="1" aria-label="Zoom"></div>
+  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u></div></div><div class="chips" id="zb" style="margin:8px 0 0;justify-content:center"><button data-z="1" class="on">1x</button><button data-z="2">2x</button><button data-z="3">3x</button><button data-z="4">4x</button></div></div>
   <div class="row"><button class="b" id="cam">📷 Quét bằng camera</button><button class="b" id="kb">⌨ Bàn phím số</button></div>
   <div class="row"><button class="b" id="pb" style="background:var(--bg);color:var(--mu)">📸 Chụp ảnh (nếu camera trực tiếp lỗi)</button></div>
   <input type="file" id="ph" accept="image/*" capture="environment" hidden>
@@ -172,8 +172,14 @@ let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0;const cv=document.crea
 function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
 function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();bt0=Date.now();beep('ok');submit(m)}}
 const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
-function setZoom(z){zm=z;if(hw){trk.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{})}else $('vd').style.transform='scale('+z+')'}
-$('zm').oninput=e=>setZoom(+e.target.value);
+let zc=null;
+function setZoom(z){
+  zm=z;
+  if(hw){const c=Math.min(Math.max(z,zc.min),zc.max);trk.applyConstraints({advanced:[{zoom:c}]}).catch(()=>{})}
+  else $('vd').style.transform='scale('+z+')';
+  document.querySelectorAll('#zb button').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
+}
+$('zb').onclick=e=>{const z=+e.target.dataset.z;if(z&&stream)setZoom(z)};
 const ANG=[0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170],rc=document.createElement('canvas');let ai=0;
 const WOPT={formats:['Code128','Code39','ITF','QRCode'],tryHarder:true,tryRotate:false,tryDownscale:true,maxNumberOfSymbols:3};
 function rot(src,deg){
@@ -215,11 +221,10 @@ $('cam').onclick=async()=>{
     const v=$('vd');v.srcObject=stream;await v.play();$('vw').hidden=false;
     trk=stream.getVideoTracks()[0];const cp=(trk.getCapabilities&&trk.getCapabilities())||{};
     try{await trk.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
-    hw=!!cp.zoom;const z=$('zm');
-    z.min=hw?cp.zoom.min:1;z.max=hw?Math.min(cp.zoom.max,8):5;z.step=hw?(cp.zoom.step||0.1):0.1;z.value=z.min;
-    v.style.transform='';zm=+z.min;
+    hw=!!cp.zoom;zc=hw?cp.zoom:null;
+    v.style.transform='';setZoom(1);
     $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,120);
-    $('hint').textContent='Đặt vạch đỏ nằm ngang lên MỘT mã vạch IMEI, kéo zoom cho mã to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
+    $('hint').textContent='Đặt vạch đỏ nằm ngang lên MỘT mã vạch IMEI, chọn 2x/3x/4x cho mã to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
   }catch(e){camErr(e)}
 };
 $('pb').onclick=()=>$('ph').click();
