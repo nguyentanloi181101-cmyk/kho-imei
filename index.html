@@ -26,14 +26,20 @@ button.b{padding:11px;border:0;border-radius:10px;background:var(--acb);color:va
 button.d{background:var(--erb);color:var(--er)}
 #vw{margin-bottom:8px}#vin{position:relative;overflow:hidden;border-radius:10px;background:#000}
 video{width:100%;height:240px;display:block;object-fit:cover;transform-origin:center}#zm{margin:8px 0 0;padding:0}
-.fr{position:absolute;left:8%;right:8%;top:25%;bottom:25%;pointer-events:none}
-.fr i{position:absolute;width:26px;height:26px;border:3px solid #fff;opacity:.9}
+.fr{position:absolute;left:8%;right:8%;top:15%;bottom:15%;pointer-events:none}
+.fr i{position:absolute;width:26px;height:26px;border:3px solid #fff;opacity:.9;transition:border-color .15s}
 .fr i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0;border-radius:10px 0 0 0}
 .fr i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0;border-radius:0 10px 0 0}
 .fr i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0;border-radius:0 0 0 10px}
 .fr i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0;border-radius:0 0 10px 0}
 .fr u{position:absolute;left:-4%;right:-4%;top:50%;height:3px;margin-top:-1.5px;background:#ff2d2d;box-shadow:0 0 8px 2px rgba(255,45,45,.7);border-radius:2px;animation:ln 1.2s ease-in-out infinite}
 @keyframes ln{50%{opacity:.45}}
+/* Dấu tích khi nhận dạng được mã */
+.fr b{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:#16a34a;color:#fff;font-size:34px;line-height:56px;text-align:center;display:none;box-shadow:0 0 14px 4px rgba(22,163,74,.7)}
+.fr.hit b{display:block;animation:pop .25s ease-out}
+.fr.hit u{display:none}
+.fr.hit i{border-color:#4ade80;opacity:1}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 .hint{font-size:13px;color:var(--mu);margin:2px 0 8px}
 #res{border-radius:14px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;text-align:center}
 .ok{background:var(--okb);color:var(--ok)}.wa{background:var(--wab);color:var(--wa)}.er{background:var(--erb);color:var(--er)}
@@ -73,7 +79,7 @@ h3{font-size:15px;margin:12px 0 6px}
    </div>
   </div>
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
-  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u></div></div><div class="chips" id="zb" style="margin:8px 0 0;justify-content:center"><button data-z="1" class="on">1x</button><button data-z="2">2x</button><button data-z="3">3x</button><button data-z="4">4x</button></div></div>
+  <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u><b>✓</b></div></div><div class="chips" id="zb" style="margin:8px 0 0;justify-content:center"><button data-z="1" class="on">1x</button><button data-z="2">2x</button><button data-z="3">3x</button><button data-z="4">4x</button></div></div>
   <div class="row"><button class="b" id="cam">📷 Quét bằng camera</button><button class="b" id="kb">⌨ Bàn phím số</button></div>
   <div class="row"><button class="b" id="pb" style="background:var(--bg);color:var(--mu)">📸 Chụp ảnh (nếu camera trực tiếp lỗi)</button></div>
   <input type="file" id="ph" accept="image/*" capture="environment" hidden>
@@ -119,6 +125,14 @@ const TABS=[['in','Nhập kho'],['sold','Đã bán'],['out','Xuất kho'],['chk'
 const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',sold:'Đánh dấu máy đã bán nhưng chưa giao/xuất khỏi kho.',out:'Quét khi máy rời kho. Máy “đã bán” sẽ chuyển sang “đã xuất”.',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy thiếu và máy đã bán chưa xuất.'};
 const ST={in:['Tồn kho','ok'],sold:['Đã bán, chưa xuất','wa'],out:['Đã xuất','er']};
 
+/* Lấy IMEI 15 số từ nội dung mã (mã vạch, QR hoặc Data Matrix).
+   Ưu tiên chuỗi số đúng 15 chữ số, nếu không có thì lấy 15 số đầu tiên. */
+function imeiOf(t){
+  const s=String(t||'');
+  const exact=(s.match(/\d+/g)||[]).find(x=>x.length===15);
+  return exact||(s.match(/\d{15}/)||[])[0];
+}
+
 async function load(){
   try{const rows=await api({a:'getAll'});db={};rows.forEach(r=>db[r[0]]=fromRec(r));render()}
   catch(e){$('res').className='cd er';$('res').textContent='Không tải được dữ liệu: '+(e.message||e)}
@@ -145,7 +159,7 @@ function show(r){
   $('res').className='cd '+r.c;$('res').innerHTML=esc(r.m)+'<small>'+esc(r.i)+'</small>';render();
 }
 function submit(raw){
-  const i=(String(raw).match(/\d{15}/)||[])[0];
+  const i=imeiOf(raw);
   if(!i)return show({c:'er',m:'IMEI không hợp lệ (cần 15 số)',i:String(raw).slice(0,20)});
   if(mode==='chk')return show(chkProc(i));
   queue.push([i,mode,mdlStr()]);
@@ -168,9 +182,19 @@ $('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').va
 $('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim(),key:$('ck').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
 
 /* Camera quét liên tục + zoom */
-let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0;const cv=document.createElement('canvas');
-function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera'}
-function onCode(t){const m=(String(t).match(/\d{15}/)||[])[0];if(m&&(m!==last||Date.now()-lt>2500)){last=m;lt=Date.now();bt0=Date.now();beep('ok');submit(m)}}
+let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0,ft;const cv=document.createElement('canvas');
+function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera';$('vin').querySelector('.fr').classList.remove('hit')}
+/* Vạch đỏ -> dấu tích xanh khi nhận dạng được mã */
+function flash(){
+  const f=$('vin').querySelector('.fr');
+  f.classList.add('hit');clearTimeout(ft);
+  ft=setTimeout(()=>f.classList.remove('hit'),1100);
+}
+function onCode(t){
+  const m=imeiOf(t);if(!m)return;
+  flash();
+  if(m!==last||Date.now()-lt>2500){last=m;lt=Date.now();bt0=Date.now();beep('ok');submit(m)}
+}
 const camErr=e=>{$('hint').textContent='Camera lỗi: '+((e&&e.name)||e)+'. Kiểm tra quyền camera của trình duyệt hoặc dùng nút Chụp ảnh.';stopCam()};
 let zc=null;
 function setZoom(z){
@@ -181,7 +205,7 @@ function setZoom(z){
 }
 $('zb').onclick=e=>{const z=+e.target.dataset.z;if(z&&stream)setZoom(z)};
 const ANG=[0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170],rc=document.createElement('canvas');let ai=0;
-const WOPT={formats:['Code128','Code39','ITF','QRCode'],tryHarder:true,tryRotate:false,tryDownscale:true,maxNumberOfSymbols:3};
+const WOPT={formats:['Code128','Code39','ITF','QRCode','DataMatrix'],tryHarder:true,tryRotate:false,tryDownscale:true,maxNumberOfSymbols:3};
 function rot(src,deg){
   if(!deg)return src;
   const r=deg*Math.PI/180,c=Math.abs(Math.cos(r)),s=Math.abs(Math.sin(r));
@@ -194,13 +218,13 @@ async function decode(c){
   const rs=await ZXingWASM.readBarcodes(d,WOPT);
   return rs.map(r=>r.text);
 }
-function pick(list){return list.map(x=>(String(x).match(/\d{15}/)||[])[0]).find(Boolean)}
+function pick(list){return list.map(imeiOf).find(Boolean)}
 async function tick(){
   const v=$('vd');if(dbusy||!v.videoWidth)return;dbusy=1;
   try{
-    /* chỉ đọc vùng trong khung (giữa, quanh vạch ngang) */
+    /* chỉ đọc vùng trong khung (giữa, cao 70% để vừa cả mã vuông Data Matrix) */
     const z=hw?1:zm,w=v.videoWidth/z,h=v.videoHeight/z;
-    const sx=(v.videoWidth-w)/2+w*.08,sw=w*.84,sy=(v.videoHeight-h)/2+h*.25,sh=h*.5;
+    const sx=(v.videoWidth-w)/2+w*.08,sw=w*.84,sy=(v.videoHeight-h)/2+h*.15,sh=h*.7;
     cv.width=Math.round(Math.min(1000,sw));cv.height=Math.round(cv.width*sh/sw);
     cv.getContext('2d').drawImage(v,sx,sy,sw,sh,0,0,cv.width,cv.height);
     if(window.ZXingWASM){
@@ -224,7 +248,7 @@ $('cam').onclick=async()=>{
     hw=!!cp.zoom;zc=hw?cp.zoom:null;
     v.style.transform='';setZoom(1);
     $('cam').textContent='⏹ Tắt camera';timer=setInterval(tick,120);
-    $('hint').textContent='Đặt vạch đỏ nằm ngang lên MỘT mã vạch IMEI, chọn 2x/3x/4x cho mã to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
+    $('hint').textContent='Đặt MỘT mã vạch hoặc mã Data Matrix IMEI vào khung. Khi nhận được mã, vạch đỏ sẽ đổi thành dấu ✓. Chọn 2x/3x/4x cho mã to ra. Tem có 2 IMEI thì che mã IMEI 2 lại.';
   }catch(e){camErr(e)}
 };
 $('pb').onclick=()=>$('ph').click();
@@ -238,7 +262,7 @@ $('ph').onchange=async e=>{
     src.getContext('2d').drawImage(bmp,0,0,src.width,src.height);
     let m;for(const deg of ANG){m=pick(await decode(rot(src,deg)));if(m)break}
     if(m){$('hint').textContent='';bt0=Date.now();beep('ok');submit(m)}
-    else{$('hint').textContent='Không đọc được mã vạch trong ảnh. Chụp gần hơn, rõ nét, chỉ lấy một mã vạch IMEI.';beep('er')}
+    else{$('hint').textContent='Không đọc được mã trong ảnh. Chụp gần hơn, rõ nét, chỉ lấy một mã IMEI.';beep('er')}
   }catch(x){$('hint').textContent='Không đọc được ảnh: '+((x&&x.message)||x);beep('er')}
 };
 function setMode(m){
