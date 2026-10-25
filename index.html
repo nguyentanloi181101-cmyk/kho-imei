@@ -71,12 +71,8 @@ h3{font-size:15px;margin:12px 0 6px}
 <div id="scan">
  <div class="cd">
   <div id="mdw">
-   <input id="m1" placeholder="Tên máy (vd: iPhone 13)">
-   <div class="row" style="margin-bottom:8px">
-    <select id="m2"><option value="">RAM</option><option>4</option><option>6</option><option>8</option><option>12</option></select>
-    <select id="m3"><option value="">ROM</option><option>64</option><option>128</option><option>256</option><option>512</option></select>
-    <input id="m4" placeholder="Màu">
-   </div>
+   <select id="m1"><option value="">Chọn tên máy (theo bảng Cấu hình)</option></select>
+   <select id="m4"><option value="">Chọn màu</option></select>
   </div>
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Quét hoặc nhập IMEI…">
   <div id="vw" hidden><div id="vin"><video id="vd" playsinline muted></video><div class="fr"><i></i><i></i><i></i><i></i><u></u><b>✓</b></div></div><div class="chips" id="zb" style="margin:8px 0 0;justify-content:center"><button data-z="1" class="on">1x</button><button data-z="2">2x</button><button data-z="3">3x</button><button data-z="4">4x</button></div></div>
@@ -88,6 +84,14 @@ h3{font-size:15px;margin:12px 0 6px}
  <div id="res" class="cd">Sẵn sàng quét</div>
  <div id="chk" hidden></div>
  <h3>Lịch sử quét</h3><div id="log"></div>
+</div>
+
+<div id="fnd" hidden>
+ <div class="cd">
+  <select id="f1"><option value="">Tất cả model</option></select>
+  <select id="f2" disabled><option value="">Tất cả màu</option></select>
+ </div>
+ <div id="fres"></div>
 </div>
 
 <div id="lst" hidden>
@@ -112,16 +116,80 @@ async function api(body){
   const r=await fetch(c.url,{method:'POST',body:JSON.stringify({...body,key:c.key||''})});
   const j=await r.json();if(j.err)throw new Error(j.err);return j.data;
 }
-/* Gộp 4 ô thành 1 chuỗi model */
-function mdlStr(){
-  const n=$('m1').value.trim(),ra=$('m2').value,ro=$('m3').value,c=$('m4').value.trim();
-  const mem=ra&&ro?ra+'/'+ro+'GB':ra?ra+'GB RAM':ro?ro+'GB':'';
-  return [n,mem,c].filter(Boolean).join(' · ');
+/* Model + màu lấy từ sheet "Câu hình" (tên máy đã gồm RAM/ROM) */
+let cfgList=[];
+function mdlStr(){return [$('m1').value,$('m4').value].filter(Boolean).join(' · ')}
+function fillColors(){
+  const m=cfgList.find(x=>x.model===$('m1').value),old=$('m4').value;
+  $('m4').innerHTML='<option value="">Chọn màu</option>'+(m?m.colors:[]).map(c=>`<option>${esc(c)}</option>`).join('');
+  if(m&&m.colors.includes(old))$('m4').value=old;
+  else if(m&&m.colors.length===1)$('m4').value=m.colors[0];
+}
+async function loadCfg(){
+  try{
+    cfgList=await api({a:'getCfg'});const old=$('m1').value;
+    $('m1').innerHTML='<option value="">Chọn tên máy (theo bảng Cấu hình)</option>'+cfgList.map(x=>`<option>${esc(x.model)}</option>`).join('');
+    if(cfgList.some(x=>x.model===old))$('m1').value=old;
+    fillColors();fillFind();
+  }catch(e){$('hint').textContent='Không tải được bảng Cấu hình: '+(e.message||e)+' (cần cập nhật Code.gs mới)'}
+}
+$('m1').onchange=fillColors;
+
+/* ===== Tra cứu tồn kho theo model + màu ===== */
+const nk=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/gb|·|\s+/g,'');
+const colorOf=m=>{const s=String(m||'');const c=s.includes('·')?s.split('·').pop().trim():s.trim().split(/\s+/).pop();return c?c.charAt(0).toUpperCase()+c.slice(1):''};
+function fillFind(){
+  const old=$('f1').value;
+  $('f1').innerHTML='<option value="">Tất cả model</option>'+cfgList.map(x=>`<option>${esc(x.model)}</option>`).join('');
+  if(cfgList.some(x=>x.model===old))$('f1').value=old;
+  fillFindColors();
+}
+function fillFindColors(){
+  const m=cfgList.find(x=>x.model===$('f1').value),old=$('f2').value;
+  $('f2').disabled=!m;
+  $('f2').innerHTML='<option value="">Tất cả màu</option>'+(m?m.colors:[]).map(c=>`<option>${esc(c)}</option>`).join('');
+  if(m&&m.colors.includes(old))$('f2').value=old;
+}
+$('f1').onchange=()=>{fillFindColors();renderFind()};
+$('f2').onchange=renderFind;
+const cnt=(a,k)=>a.filter(([,r])=>r.s===k).length;
+function renderFind(){
+  const out=$('fres'),a=all(),m=$('f1').value,c=$('f2').value;
+  if(!m){
+    /* Tổng hợp tồn theo từng model */
+    const keys=cfgList.map(x=>[x.model,nk(x.model)]).sort((x,y)=>y[1].length-x[1].length);
+    const g={},other=[];
+    a.forEach(([i,r])=>{
+      const k=nk(r.model),f=keys.find(x=>k.startsWith(x[1]));
+      if(f)(g[f[0]]=g[f[0]]||[]).push([i,r]);else other.push([i,r]);
+    });
+    const rows=cfgList.map(x=>[x.model,g[x.model]||[]]);
+    if(other.length)rows.push(['Khác (không có trong Cấu hình)',other]);
+    const tot=rows.reduce((t,[,l])=>t+cnt(l,'in'),0);
+    out.innerHTML=`<div class="cd" style="text-align:center"><div class="hint">Tổng tồn kho</div><div style="font-size:48px;font-weight:700;color:var(--ok)">${tot}</div><div>cây</div></div>`+
+      rows.map(([n,l])=>`<div class="it ${cnt(l,'in')?'ok':'er'}"><b>${esc(n)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(l,'in')}</b> cây${cnt(l,'sold')?'<br>bán chưa xuất: '+cnt(l,'sold'):''}</span></div>`).join('');
+    return;
+  }
+  const mk=nk(m),cfgm=cfgList.find(x=>x.model===m),g={};
+  (cfgm?cfgm.colors:[]).forEach(col=>g[nk(col)]={label:col,l:[]});
+  a.forEach(([i,r])=>{
+    const k=nk(r.model);if(!k.startsWith(mk))return;
+    const rest=k.slice(mk.length);
+    (g[rest]=g[rest]||{label:colorOf(r.model)||'(không ghi màu)',l:[]}).l.push([i,r]);
+  });
+  const groups=Object.keys(g).map(k=>[k,g[k]]);
+  const sel=c?groups.filter(([k])=>k===nk(c)):groups;
+  const all2=[].concat(...sel.map(([,x])=>x.l));
+  const title=m+(c?' · '+c:'');
+  let h=`<div class="cd" style="text-align:center"><div class="hint">${esc(title)}</div><div style="font-size:48px;font-weight:700;color:${cnt(all2,'in')?'var(--ok)':'var(--er)'}">${cnt(all2,'in')}</div><div>cây còn tồn</div><small class="hint">Bán chưa xuất: ${cnt(all2,'sold')} · Đã xuất: ${cnt(all2,'out')}</small></div>`;
+  if(!c)h+='<h3>Theo màu</h3>'+groups.map(([,x])=>`<div class="it ${cnt(x.l,'in')?'ok':'er'}"><b>${esc(x.label)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(x.l,'in')}</b> cây${cnt(x.l,'sold')?'<br>bán chưa xuất: '+cnt(x.l,'sold'):''}</span></div>`).join('');
+  else{const ins=all2.filter(([,r])=>r.s==='in');h+=`<h3>IMEI còn tồn (${ins.length})</h3>`+(ins.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tin))).join('')||'<p class="hint">Hết hàng.</p>')}
+  out.innerHTML=h;
 }
 const fromRec=r=>({model:r[1],s:r[2],tin:r[3],tsold:r[4],tout:r[5]});
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=t=>t?new Date(t).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-const TABS=[['in','Nhập kho'],['sold','Đã bán'],['out','Xuất kho'],['chk','Kiểm kho'],['list','Danh sách']];
+const TABS=[['in','Nhập kho'],['sold','Đã bán'],['out','Xuất kho'],['chk','Kiểm kho'],['find','Tra cứu'],['list','Danh sách']];
 const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',sold:'Đánh dấu máy đã bán nhưng chưa giao/xuất khỏi kho.',out:'Quét khi máy rời kho. Máy “đã bán” sẽ chuyển sang “đã xuất”.',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy thiếu và máy đã bán chưa xuất.'};
 const ST={in:['Tồn kho','ok'],sold:['Đã bán, chưa xuất','wa'],out:['Đã xuất','er']};
 
@@ -134,6 +202,7 @@ function imeiOf(t){
 }
 
 async function load(){
+  loadCfg();
   try{const rows=await api({a:'getAll'});db={};rows.forEach(r=>db[r[0]]=fromRec(r));render()}
   catch(e){$('res').className='cd er';$('res').textContent='Không tải được dữ liệu: '+(e.message||e)}
 }
@@ -266,12 +335,12 @@ $('ph').onchange=async e=>{
   }catch(x){$('hint').textContent='Không đọc được ảnh: '+((x&&x.message)||x);beep('er')}
 };
 function setMode(m){
-  mode=m;$('scan').hidden=m==='list';$('lst').hidden=m!=='list';
+  mode=m;$('scan').hidden=m==='list'||m==='find';$('lst').hidden=m!=='list';$('fnd').hidden=m!=='find';
   $('chk').hidden=m!=='chk';$('mdw').hidden=m!=='in';$('hint').textContent=HINT[m]||'';
   if(m==='chk'){chk={};log=[]}
-  if(m==='chk'||m==='list')load();
+  if(m==='chk'||m==='list'||m==='find')load();
   $('res').className='cd';$('res').textContent='Sẵn sàng quét';
-  render();if(m!=='list'&&!stream)$('sc').focus();
+  render();if(m!=='list'&&m!=='find'&&!stream)$('sc').focus();
 }
 const all=()=>Object.entries(db);
 function item(i,r,extra){const s=ST[r.s];return `<div class="it ${s[1]}"><div><b>${i}</b><br>${esc(r.model)||'—'}</div><span><span class="pill ${s[1]}">${s[0]}</span><br>${extra||''}</span></div>`}
@@ -288,6 +357,7 @@ function render(){
     ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
     <button class="b d" id="rc" style="width:100%;margin-top:8px">Bắt đầu phiên kiểm mới</button>`;
   }
+  if(mode==='find')renderFind();
   if(mode==='list'){
     $('chips').innerHTML=[['all','Tất cả'],['in','Tồn kho'],['sold','Bán chưa xuất'],['out','Đã xuất']].map(c=>`<button class="${flt===c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('');
     const q=$('q').value.trim().toLowerCase(),rows=a.filter(([i,r])=>(flt==='all'||r.s===flt)&&(!q||i.includes(q)||(r.model||'').toLowerCase().includes(q))).sort((x,y)=>(y[1].tin||0)-(x[1].tin||0));
