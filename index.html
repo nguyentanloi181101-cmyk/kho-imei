@@ -11,7 +11,7 @@ body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-appl
 .w{max-width:640px;margin:0 auto;padding:12px}
 .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
 h1{font-size:20px;margin:0}
-.st{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.st{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;margin-bottom:10px}
 .st div{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:8px;text-align:center}
 .st b{display:block;font-size:22px}.st span{font-size:12px;color:var(--mu)}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}
@@ -100,7 +100,7 @@ h3{font-size:15px;margin:12px 0 6px}
  <div id="rows"></div>
  <div class="cd">
   <h3 style="margin-top:0">Dán nhiều IMEI cùng lúc</h3>
-  <select id="bm"><option value="in">Nhập kho</option><option value="sold">Đánh dấu đã bán</option><option value="out">Xuất kho</option></select>
+  <select id="bm"><option value="in">Nhập kho</option><option value="out">Xuất kho</option></select>
   <textarea id="bt" rows="4" placeholder="Mỗi dòng một IMEI"></textarea>
   <button class="b" id="bg" style="width:100%">Áp dụng</button>
   <p class="hint" id="bmsg"></p>
@@ -167,7 +167,7 @@ function renderFind(){
     if(other.length)rows.push(['Khác (không có trong Cấu hình)',other]);
     const tot=rows.reduce((t,[,l])=>t+cnt(l,'in'),0);
     out.innerHTML=`<div class="cd" style="text-align:center"><div class="hint">Tổng tồn kho</div><div style="font-size:48px;font-weight:700;color:var(--ok)">${tot}</div><div>cây</div></div>`+
-      rows.map(([n,l])=>`<div class="it ${cnt(l,'in')?'ok':'er'}"><b>${esc(n)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(l,'in')}</b> cây${cnt(l,'sold')?'<br>bán chưa xuất: '+cnt(l,'sold'):''}</span></div>`).join('');
+      rows.map(([n,l])=>`<div class="it ${cnt(l,'in')?'ok':'er'}"><b>${esc(n)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(l,'in')}</b> cây</span></div>`).join('');
     return;
   }
   const mk=nk(m),cfgm=cfgList.find(x=>x.model===m),g={};
@@ -181,17 +181,17 @@ function renderFind(){
   const sel=c?groups.filter(([k])=>k===nk(c)):groups;
   const all2=[].concat(...sel.map(([,x])=>x.l));
   const title=m+(c?' · '+c:'');
-  let h=`<div class="cd" style="text-align:center"><div class="hint">${esc(title)}</div><div style="font-size:48px;font-weight:700;color:${cnt(all2,'in')?'var(--ok)':'var(--er)'}">${cnt(all2,'in')}</div><div>cây còn tồn</div><small class="hint">Bán chưa xuất: ${cnt(all2,'sold')} · Đã xuất: ${cnt(all2,'out')}</small></div>`;
-  if(!c)h+='<h3>Theo màu</h3>'+groups.map(([,x])=>`<div class="it ${cnt(x.l,'in')?'ok':'er'}"><b>${esc(x.label)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(x.l,'in')}</b> cây${cnt(x.l,'sold')?'<br>bán chưa xuất: '+cnt(x.l,'sold'):''}</span></div>`).join('');
+  let h=`<div class="cd" style="text-align:center"><div class="hint">${esc(title)}</div><div style="font-size:48px;font-weight:700;color:${cnt(all2,'in')?'var(--ok)':'var(--er)'}">${cnt(all2,'in')}</div><div>cây còn tồn</div><small class="hint">Đã xuất: ${cnt(all2,'out')}</small></div>`;
+  if(!c)h+='<h3>Theo màu</h3>'+groups.map(([,x])=>`<div class="it ${cnt(x.l,'in')?'ok':'er'}"><b>${esc(x.label)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(x.l,'in')}</b> cây</span></div>`).join('');
   else{const ins=all2.filter(([,r])=>r.s==='in');h+=`<h3>IMEI còn tồn (${ins.length})</h3>`+(ins.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tin))).join('')||'<p class="hint">Hết hàng.</p>')}
   out.innerHTML=h;
 }
-const fromRec=r=>({model:r[1],s:r[2],tin:r[3],tsold:r[4],tout:r[5]});
+const fromRec=r=>({model:r[1],s:r[2]==='sold'?'out':r[2],tin:r[3],tsold:r[4],tout:r[5]||r[4]});
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=t=>t?new Date(t).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-const TABS=[['in','Nhập kho'],['sold','Đã bán'],['out','Xuất kho'],['chk','Kiểm kho'],['find','Tra cứu'],['list','Danh sách']];
-const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',sold:'Đánh dấu máy đã bán nhưng chưa giao/xuất khỏi kho.',out:'Quét khi máy rời kho. Máy “đã bán” sẽ chuyển sang “đã xuất”.',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy thiếu và máy đã bán chưa xuất.'};
-const ST={in:['Tồn kho','ok'],sold:['Đã bán, chưa xuất','wa'],out:['Đã xuất','er']};
+const TABS=[['in','Nhập kho'],['out','Xuất kho'],['chk','Kiểm kho'],['find','Tra cứu'],['list','Danh sách']];
+const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',out:'Quét khi máy rời kho (đã bán/giao đi).',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy còn thiếu.'};
+const ST={in:['Tồn kho','ok'],out:['Đã xuất','er']};
 
 /* Lấy IMEI 15 số từ nội dung mã (mã vạch, QR hoặc Data Matrix).
    Ưu tiên chuỗi số đúng 15 chữ số, nếu không có thì lấy 15 số đầu tiên. */
@@ -212,7 +212,6 @@ function chkProc(i){
   chk[i]=1;
   if(!r)return R('er','Không có trong hệ thống');
   if(r.s==='in')return R('ok','Tồn kho – khớp');
-  if(r.s==='sold')return R('wa','ĐÃ BÁN – CHƯA XUẤT');
   return R('er','Đã xuất nhưng vẫn còn máy!');
 }
 let ac;
@@ -346,20 +345,19 @@ const all=()=>Object.entries(db);
 function item(i,r,extra){const s=ST[r.s];return `<div class="it ${s[1]}"><div><b>${i}</b><br>${esc(r.model)||'—'}</div><span><span class="pill ${s[1]}">${s[0]}</span><br>${extra||''}</span></div>`}
 function render(){
   const a=all(),n=k=>a.filter(([,r])=>r.s===k).length;
-  $('st').innerHTML=`<div><b>${n('in')}</b><span>Tồn kho</span></div><div><b style="color:var(--wa)">${n('sold')}</b><span>Bán chưa xuất</span></div><div><b>${n('out')}</b><span>Đã xuất</span></div>`;
+  $('st').innerHTML=`<div><b>${n('in')}</b><span>Tồn kho</span></div><div><b>${n('out')}</b><span>Đã xuất</span></div>`;
   $('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===mode?'on':''}" data-m="${t[0]}">${t[1]}</button>`).join('');
   $('log').innerHTML=log.slice(0,30).map(l=>`<div class="it ${l.c}"><b>${esc(l.i)}</b><span>${esc(l.m)}<br>${fmt(l.t)}</span></div>`).join('')||'<p class="hint">Chưa có lượt quét nào.</p>';
   if(mode==='chk'){
-    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),sold=a.filter(([,r])=>r.s==='sold'),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
-    $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div><div><b style="color:var(--wa)">${sold.length}</b><span>Bán chưa xuất</span></div></div>
-    <h3>Máy bán chưa xuất (${sold.length})</h3>${sold.map(([i,r])=>item(i,r,chk[i]?'còn tại kho ✓':'chưa quét')).join('')||'<p class="hint">Không có.</p>'}
+    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
+    $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div></div>
     <h3>Máy tồn nhưng chưa quét thấy (${miss.length})</h3>${miss.slice(0,100).map(([i,r])=>item(i,r)).join('')||'<p class="hint">Không có – kho khớp.</p>'}
     ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
     <button class="b d" id="rc" style="width:100%;margin-top:8px">Bắt đầu phiên kiểm mới</button>`;
   }
   if(mode==='find')renderFind();
   if(mode==='list'){
-    $('chips').innerHTML=[['all','Tất cả'],['in','Tồn kho'],['sold','Bán chưa xuất'],['out','Đã xuất']].map(c=>`<button class="${flt===c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('');
+    $('chips').innerHTML=[['all','Tất cả'],['in','Tồn kho'],['out','Đã xuất']].map(c=>`<button class="${flt===c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('');
     const q=$('q').value.trim().toLowerCase(),rows=a.filter(([i,r])=>(flt==='all'||r.s===flt)&&(!q||i.includes(q)||(r.model||'').toLowerCase().includes(q))).sort((x,y)=>(y[1].tin||0)-(x[1].tin||0));
     $('rows').innerHTML=`<p class="hint">${rows.length} máy</p>`+rows.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tout||r.tsold||r.tin))).join('');
   }
