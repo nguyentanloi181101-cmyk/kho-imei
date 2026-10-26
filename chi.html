@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thu chi</title>
+<script src="gs.js"></script>
+<script>window.google = { script: { run: HUB.run('chi') } };</script>
+<style>
+  :root {
+    --bg: #f5f7f4; --card: #ffffff; --ink: #1c2b25; --muted: #6b7a73; --line: #dbe3de;
+    --accent: #0f7a5a; --accent-ink: #ffffff; --out: #b3392f; --in: #0f7a5a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121a17; --card: #1a2420; --ink: #e8f0ec; --muted: #8fa097; --line: #2a3832;
+      --accent: #3fbf94; --accent-ink: #08241a; --out: #ef8a80; --in: #3fbf94;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.45;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
+  .balance { padding: 8px 0 18px; }
+  .balance small { color: var(--muted); display: block; }
+  .balance strong { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; }
+  .balance strong.neg { color: var(--out); }
+  .month { display: flex; gap: 20px; margin-top: 8px; font-size: 14px; color: var(--muted); }
+  .month b { color: var(--ink); font-weight: 600; }
+  .month .i b { color: var(--in); }
+  .month .o b { color: var(--out); }
+  form, .list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+  .seg button { padding: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  .seg button[aria-pressed="true"].is-in { color: var(--in); }
+  .seg button[aria-pressed="true"].is-out { color: var(--out); }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 12px; font: inherit; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  }
+  input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .amount { font-size: 22px; font-weight: 600; }
+  .photo {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 110px; border: 2px dashed var(--line); border-radius: 12px;
+    color: var(--muted); cursor: pointer; overflow: hidden; margin: 0 !important;
+  }
+  .photo img { width: 100%; max-height: 260px; object-fit: cover; display: none; }
+  .photo.has img { display: block; }
+  .photo.has span { display: none; }
+  #file { display: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--bg); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .save {
+    width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 12px;
+    background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .save:disabled { opacity: .6; cursor: default; }
+  #msg { min-height: 22px; margin: 10px 0 0; font-size: 14px; }
+  #msg.err { color: var(--out); }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  .list { padding: 4px 16px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row small { color: var(--muted); display: block; }
+  .row b { white-space: nowrap; }
+  .row b.in { color: var(--in); }
+  .row b.out { color: var(--out); }
+  .row a { color: var(--accent); font-size: 13px; }
+  .empty { padding: 16px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="balance">
+    <small>Còn lại</small>
+    <strong id="balance">—</strong>
+    <div class="month">
+      <span class="i">Thu tháng này <b id="mIn">—</b></span>
+      <span class="o">Chi tháng này <b id="mOut">—</b></span>
+    </div>
+  </div>
+
+  <form id="f">
+    <div class="seg" role="group" aria-label="Loại giao dịch">
+      <button type="button" id="tOut" class="is-out" aria-pressed="true">Khoản chi</button>
+      <button type="button" id="tIn" class="is-in" aria-pressed="false">Khoản thu</button>
+    </div>
+
+    <label class="photo" id="photoBox" for="file">
+      <img id="preview" alt="Ảnh đã chụp">
+      <span>Chạm để chụp ảnh hoặc chọn ảnh (không bắt buộc)</span>
+    </label>
+    <input type="file" id="file" accept="image/*" capture="environment">
+
+    <label for="amount">Số tiền (VND)</label>
+    <input id="amount" class="amount" inputmode="numeric" placeholder="0" autocomplete="off" required>
+
+    <label>Danh mục</label>
+    <div class="chips" id="chips"></div>
+
+    <label for="note">Ghi chú</label>
+    <input id="note" placeholder="Ví dụ: cà phê với bạn">
+
+    <label for="date">Ngày</label>
+    <input id="date" type="date" required>
+
+    <button class="save" id="saveBtn" type="submit">Lưu khoản chi</button>
+    <p id="msg" role="status"></p>
+  </form>
+
+  <h2>Gần đây</h2>
+  <div class="list" id="list"><div class="empty">Đang tải...</div></div>
+</main>
+
+<script>
+  const CATS = {
+    Chi: ['Ăn uống', 'Đi lại', 'Mua sắm', 'Nhà cửa', 'Sức khỏe', 'Giải trí', 'Học tập', 'Khác'],
+    Thu: ['Lương', 'Thưởng', 'Bán đồ', 'Được cho', 'Lãi', 'Khác']
+  };
+  let type = 'Chi';
+  let category = CATS.Chi[0];
+  let imageBase64 = '';
+  let mimeType = 'image/jpeg';
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString('vi-VN') + ' ₫';
+
+  function renderChips() {
+    $('chips').innerHTML = '';
+    CATS[type].forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = c;
+      b.setAttribute('aria-pressed', i === 0);
+      b.onclick = () => {
+        category = c;
+        document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+      };
+      $('chips').appendChild(b);
+    });
+    category = CATS[type][0];
+  }
+
+  function setType(t) {
+    type = t;
+    $('tOut').setAttribute('aria-pressed', t === 'Chi');
+    $('tIn').setAttribute('aria-pressed', t === 'Thu');
+    $('saveBtn').textContent = t === 'Thu' ? 'Lưu khoản thu' : 'Lưu khoản chi';
+    renderChips();
+  }
+  $('tOut').onclick = () => setType('Chi');
+  $('tIn').onclick = () => setType('Thu');
+  renderChips();
+
+  const today = new Date();
+  $('date').value = new Date(today - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  $('amount').addEventListener('input', e => {
+    const digits = e.target.value.replace(/\D/g, '');
+    e.target.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+  });
+
+  $('file').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compress(file, 1280, 0.75);
+    imageBase64 = dataUrl.split(',')[1];
+    mimeType = 'image/jpeg';
+    $('preview').src = dataUrl;
+    $('photoBox').classList.add('has');
+  });
+
+  function compress(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = img.width * scale; c.height = img.height * scale;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function setMsg(text, isErr) {
+    $('msg').textContent = text;
+    $('msg').className = isErr ? 'err' : '';
+  }
+
+  $('f').addEventListener('submit', e => {
+    e.preventDefault();
+    const amount = $('amount').value.replace(/\D/g, '');
+    if (!amount) { setMsg('Nhập số tiền trước khi lưu.', true); return; }
+
+    $('saveBtn').disabled = true;
+    setMsg('Đang lưu...');
+    google.script.run
+      .withSuccessHandler(() => {
+        setMsg(type === 'Thu' ? 'Đã lưu khoản thu.' : 'Đã lưu khoản chi.');
+        $('saveBtn').disabled = false;
+        $('amount').value = ''; $('note').value = '';
+        imageBase64 = ''; $('file').value = '';
+        $('photoBox').classList.remove('has');
+        load();
+      })
+      .withFailureHandler(err => {
+        setMsg('Lưu không được: ' + err.message, true);
+        $('saveBtn').disabled = false;
+      })
+      .saveExpense({
+        type, date: $('date').value, amount, category,
+        note: $('note').value.trim(), imageBase64, mimeType
+      });
+  });
+
+  function load() {
+    google.script.run.withSuccessHandler(res => {
+      const bal = $('balance');
+      bal.textContent = fmt(res.balance);
+      bal.className = res.balance < 0 ? 'neg' : '';
+      $('mIn').textContent = fmt(res.monthIncome);
+      $('mOut').textContent = fmt(res.monthExpense);
+
+      const list = $('list');
+      if (!res.rows.length) { list.innerHTML = '<div class="empty">Chưa có giao dịch nào.</div>'; return; }
+      list.innerHTML = '';
+      res.rows.forEach(r => {
+        const isIn = r.type === 'Thu';
+        const d = document.createElement('div');
+        d.className = 'row';
+        const left = document.createElement('div');
+        const title = document.createElement('span');
+        title.textContent = r.note || r.category;
+        const sub = document.createElement('small');
+        sub.textContent = r.date + ' · ' + r.category;
+        left.append(title, sub);
+        if (r.image) {
+          const a = document.createElement('a');
+          a.href = r.image; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Xem ảnh';
+          left.appendChild(a);
+        }
+        const amt = document.createElement('b');
+        amt.className = isIn ? 'in' : 'out';
+        amt.textContent = (isIn ? '+' : '−') + fmt(r.amount);
+        d.append(left, amt);
+        list.appendChild(d);
+      });
+    }).withFailureHandler(err => {
+      $('list').innerHTML = '<div class="empty">Không tải được: ' + (err && err.message ? err.message : err) + '</div>';
+    }).getSummary();
+  }
+  load();
+</script>
+</body>
+</html>
