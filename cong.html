@@ -84,6 +84,7 @@
 
   var db = {}, tab = 'sum', dt = [], offSheet = [], adjSheet = [], paidSheet = [];
   var curEmp = '', curMonth = '', token = '';
+  var needPassFlag = true;
 
   /* ================= KHỞI TẠO ================= */
 
@@ -132,10 +133,16 @@
     $('#loginBox').innerHTML = '<h1>Tính công</h1><div class="card mut">Đang tải danh sách nhân viên...</div>';
 
     if (hasGS()) {
+      var loadNames = function () {
+        google.script.run
+          .withSuccessHandler(function (names) { renderLogin(names || [], msg, ''); })
+          .withFailureHandler(function (e) { renderLogin([], 'Lỗi tải danh sách nhân viên: ' + (e && e.message ? e.message : e), ''); })
+          .getEmployeeList();
+      };
       google.script.run
-        .withSuccessHandler(function (names) { renderLogin(names || [], msg, ''); })
-        .withFailureHandler(function (e) { renderLogin([], 'Lỗi tải danh sách nhân viên: ' + (e && e.message ? e.message : e), ''); })
-        .getEmployeeList();
+        .withSuccessHandler(function (v) { needPassFlag = v !== false; loadNames(); })
+        .withFailureHandler(function () { needPassFlag = true; loadNames(); })
+        .needPass();
     } else {
       renderLogin([], msg, '');
     }
@@ -153,8 +160,8 @@
         '<h2>Đăng nhập</h2>' +
         '<div class="form-group"><label>Chọn tên</label>' +
           '<select id="loginName">' + opts + '</select></div>' +
-        '<div class="form-group"><label>Mật khẩu</label>' +
-          '<input type="password" id="loginPass" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')doLogin()"></div>' +
+        (needPassFlag ? '<div class="form-group"><label>Mật khẩu</label>' +
+          '<input type="password" id="loginPass" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')doLogin()"></div>' : '') +
         '<button id="loginBtn" class="btn-sm" style="width:100%;padding:12px;font-size:16px;" onclick="doLogin()">Vào</button>' +
         '<div id="loginMsg" class="msg neg">' + esc(msg || '') + '</div>' +
       '</div>' +
@@ -171,11 +178,11 @@
 
   function doLogin() {
     var name = $('#loginName').value;
-    var pass = $('#loginPass').value;
+    var pass = needPassFlag ? $('#loginPass').value : '';
     var msg = $('#loginMsg');
 
     if (!name) { msg.textContent = 'Vui lòng chọn tên!'; return; }
-    if (!pass) { msg.textContent = 'Vui lòng nhập mật khẩu!'; return; }
+    if (needPassFlag && !pass) { msg.textContent = 'Vui lòng nhập mật khẩu!'; return; }
     if (!hasGS()) { msg.textContent = 'Không kết nối được Google Script.'; return; }
 
     var btn = $('#loginBtn');
@@ -198,7 +205,7 @@
           btn.disabled = false;
           msg.className = 'msg neg';
           msg.textContent = r.msg || 'Đăng nhập thất bại.';
-          $('#loginPass').value = '';
+          if ($('#loginPass')) $('#loginPass').value = '';
         }
       })
       .withFailureHandler(function (e) {
