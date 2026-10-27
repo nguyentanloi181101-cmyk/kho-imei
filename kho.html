@@ -61,7 +61,6 @@ h3{font-size:15px;margin:12px 0 6px}
 <div class="cd" id="cfg" hidden>
  <h3 style="margin-top:0">Kết nối Google Sheet</h3>
  <input id="cu" placeholder="Link Apps Script (kết thúc bằng /exec)" autocapitalize="off">
- <input id="ck" placeholder="Mật khẩu (nếu có đặt trong Code.gs)" autocapitalize="off">
  <button class="b" id="cs" style="width:100%">Lưu và kết nối</button>
  <div class="hint">Cài đặt này chỉ lưu trên máy này, cần nhập một lần.</div>
 </div>
@@ -243,8 +242,8 @@ $('sc').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sc
 $('sc').addEventListener('input',()=>{if(/^\d{15}$/.test($('sc').value.trim()))scanIn()});
 $('kb').onclick=()=>{const s=$('sc');s.inputMode=s.inputMode==='none'?'numeric':'none';s.blur();s.focus()};
 $('rf').onclick=()=>load();
-$('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').value=c.url||'';$('ck').value=c.key||''};
-$('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim(),key:$('ck').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
+$('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').value=c.url||''};
+$('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
 
 /* Camera quét liên tục + zoom */
 let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0,ft;const cv=document.createElement('canvas');
@@ -346,34 +345,4 @@ function render(){
   $('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===mode?'on':''}" data-m="${t[0]}">${t[1]}</button>`).join('');
   $('log').innerHTML=log.slice(0,30).map(l=>`<div class="it ${l.c}"><b>${esc(l.i)}</b><span>${esc(l.m)}<br>${fmt(l.t)}</span></div>`).join('')||'<p class="hint">Chưa có lượt quét nào.</p>';
   if(mode==='chk'){
-    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
-    $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div></div>
-    <h3>Máy tồn nhưng chưa quét thấy (${miss.length})</h3>${miss.slice(0,100).map(([i,r])=>item(i,r)).join('')||'<p class="hint">Không có – kho khớp.</p>'}
-    ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
-    <button class="b d" id="rc" style="width:100%;margin-top:8px">Bắt đầu phiên kiểm mới</button>`;
-  }
-  if(mode==='find')renderFind();
-  if(mode==='list'){
-    $('chips').innerHTML=[['all','Tất cả'],['in','Tồn kho'],['out','Đã xuất']].map(c=>`<button class="${flt===c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('');
-    const q=$('q').value.trim().toLowerCase(),rows=a.filter(([i,r])=>(flt==='all'||r.s===flt)&&(!q||i.includes(q)||(r.model||'').toLowerCase().includes(q))).sort((x,y)=>(y[1].tin||0)-(x[1].tin||0));
-    $('rows').innerHTML=`<p class="hint">${rows.length} máy</p>`+rows.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tout||r.tsold||r.tin))).join('');
-  }
-}
-document.addEventListener('click',e=>{
-  const t=e.target;
-  if(t.dataset.m)setMode(t.dataset.m);
-  if(t.dataset.f){flt=t.dataset.f;render()}
-  if(t.id==='rc'){chk={};log=[];load()}
-});
-$('q').oninput=render;
-$('bg').onclick=async()=>{
-  const list=$('bt').value.split(/\s+/).filter(Boolean);if(!list.length)return;
-  $('bmsg').textContent='Đang xử lý '+list.length+' IMEI…';
-  try{const res=await api({a:'bulk',list,m:$('bm').value,model:mdlStr()}),c={ok:0,wa:0,er:0};
-    res.forEach(r=>{c[r.c]++;if(r.r)db[r.i]=fromRec(r.r)});
-    $('bt').value='';$('bmsg').textContent=`Thành công ${c.ok} · Bỏ qua ${c.wa} · Lỗi ${c.er}`;render()}
-  catch(e){$('bmsg').textContent='Lỗi: '+(e.message||e)}
-};
-if(!cfg().url){$('res').textContent='Chưa cài link Apps Script: về Menu và bấm ⚙'}else load();
-setMode('in');
-</script></body></html>
+    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='
