@@ -6,7 +6,9 @@
   HUB.post = async function (body) {
     var c = CFG();
     if (!c.url) throw new Error('Chưa cài link Apps Script (về Menu, bấm ⚙)');
-    body.key = body.app === 'kho' ? (c.kho || '') : body.app === 'chi' ? (c.chi || '') : '';
+    
+    // Đã xoá phần tự động gắn key (mật khẩu) vào body
+    
     var r = await fetch(c.url, { method: 'POST', body: JSON.stringify(body) });
     var j = await r.json();
     if (j.err) throw new Error(j.err);
