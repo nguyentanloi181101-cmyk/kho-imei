@@ -4,43 +4,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Kho IMEI</title>
 
-<!-- NHÚNG CODE CẦU NỐI HUB TRỰC TIẾP VÀO ĐÂY -->
-<script>
-(function () {
-  var CFG = function () { try { return JSON.parse(localStorage.getItem('hub_cfg') || '{}'); } catch (e) { return {}; } };
-  var HUB = window.HUB = { cfg: CFG };
-
-  HUB.post = async function (body) {
-    var c = CFG();
-    if (!c.url) throw new Error('Chưa cài link Apps Script (về Menu, bấm ⚙)');
-    var r = await fetch(c.url, { method: 'POST', body: JSON.stringify(body) });
-    var j = await r.json();
-    if (j.err) throw new Error(j.err);
-    return j.data;
-  };
-
-  HUB.run = function (app) {
-    function mk(ok, fail) {
-      return new Proxy({}, {
-        get: function (_, k) {
-          if (k === 'withSuccessHandler') return function (f) { return mk(f, fail); };
-          if (k === 'withFailureHandler') return function (f) { return mk(ok, f); };
-          return function () {
-            var args = Array.prototype.slice.call(arguments);
-            HUB.post({ app: app, fn: k, args: args })
-              .then(function (d) { if (ok) ok(d); })
-              .catch(function (e) { if (fail) fail(e); });
-          };
-        }
-      });
-    }
-    return mk();
-  };
-})();
-</script>
-<!-- KẾT THÚC CODE CẦU NỐI -->
-
+<!-- Gọi file cầu nối gs.js chuẩn cho môi trường Github Pages -->
+<script src="gs.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js"></script>
+
 <style>
 :root{--bg:#f4f5f7;--cd:#fff;--tx:#14171c;--mu:#6b7280;--bd:#e2e5ea;--ac:#2563eb;--ok:#16a34a;--wa:#d97706;--er:#dc2626;--okb:#dcfce7;--wab:#fef3c7;--erb:#fee2e2;--acb:#dbeafe}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0f1115;--cd:#1a1d23;--tx:#eef0f3;--mu:#9aa1ad;--bd:#2c313a;--ac:#60a5fa;--ok:#4ade80;--wa:#fbbf24;--er:#f87171;--okb:#12301d;--wab:#35290a;--erb:#3a1616;--acb:#172a4a}}
