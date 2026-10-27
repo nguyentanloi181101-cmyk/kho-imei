@@ -38,6 +38,7 @@
     .day { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 6px; background: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }
     .day.off { background: var(--neg); color: #fff; border-color: var(--neg); }
     .day.fut { opacity: .35; }
+    .day { cursor: pointer; user-select: none; }
     .pos { color: var(--pos); } .neg { color: var(--neg); } .mut { color: var(--mut); }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; color: var(--mut); margin-bottom: 4px; }
@@ -80,9 +81,11 @@
   };
   var hasGS = function () { return !!(window.google && google.script && google.script.run); };
 
-  var TABS = [['sum', 'Tổng hợp'], ['cc', 'Chấm công'], ['kpi', 'KPI'], ['models', 'Model bán'], ['plus', 'Thưởng / Chi bù'], ['minus', 'Các khoản trừ']];
+  var TABS = [['sum', 'Tổng hợp'], ['cc', 'Chấm công'], ['sell', 'Bán hàng'], ['kpi', 'KPI'], ['models', 'Model bán'], ['plus', 'Thưởng / Chi bù'], ['minus', 'Các khoản trừ']];
 
   var db = {}, tab = 'sum', dt = [], offSheet = [], adjSheet = [], paidSheet = [];
+  var monthCfg = {}, sheetLcb = 0, sales = [], hasSales = false, models = [];
+  var sellDraft = { model: '', other: '', qty: 1, date: todayStr() }, sellMsg = { t: '', e: false };
   var curEmp = '', curMonth = '', token = '';
   var needPassFlag = true;
 
@@ -126,6 +129,7 @@
   function showLogin(msg) {
     token = ''; curEmp = '';
     db = {}; dt = []; offSheet = []; adjSheet = []; paidSheet = [];
+    monthCfg = {}; sheetLcb = 0; sales = []; hasSales = false; models = [];
     try { sessionStorage.removeItem('tc_token'); sessionStorage.removeItem('tc_emp'); } catch (e) {}
 
     $('#app').style.display = 'none';
@@ -296,6 +300,11 @@
           offSheet = data.offSheet || [];
           adjSheet = data.adjSheet || [];
           paidSheet = data.paidSheet || [];
+          monthCfg = data.monthCfg || {};
+          sheetLcb = Number(data.lcb) || 0;
+          sales = data.sales || [];
+          hasSales = !!data.hasSales;
+          models = data.models || [];
           $('#st').textContent = 'Đã đồng bộ';
           render();
         })
@@ -371,7 +380,7 @@
   function getModelSummary() {
     var map = {};
     var order = [];
-    getEmpKPIs().forEach(function (item) {
+    modelSource().forEach(function (item) {
       var name = String(item.model || '').trim();
       if (!name) return;
       var k = norm(name);
@@ -413,8 +422,9 @@
   function calc(r) {
     if (!r) return { luong: 0, cv: 0, kpi: 0, bonus: 0, bu: 0, tru: 0, net: 0, cong: 0, std: 24 };
     var c = r.cc;
-    var std = Number(c.std) || 24;
-    var lcb = Number(c.lcb) || 0;
+    var rule = monthRule(r);
+    var std = rule.std;
+    var lcb = sheetLcb || Number(c.lcb) || 0;
 
     var last = lastCountedDay();
     var offDays = getEmpOffDays();
@@ -423,7 +433,7 @@
     var cong = Math.max(0, last - offCount);
 
     var luong = (cong >= std) ? lcb : (lcb / std) * cong;
-    var cv = cong >= std ? (Number(c.cv) || 0) : 0;
+    var cv = cong >= std ? rule.cv : 0;
 
     var totalKPI = calcSheetKPI();
     var adj = calcSheetAdj();
@@ -433,6 +443,76 @@
       net: luong + cv + totalKPI + adj.bonus + adj.bu - adj.tru,
       cong: cong, std: std
     };
+  }
+
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function todayStr() { var n = new Date(); return n.getFullYear() + '-' + pad2(n.getMonth() + 1) + '-' + pad2(n.getDate()); }
+
+  // Công chuẩn + chuyên cần của tháng đang xem: lấy từ sheet "Nhân viên"
+  function monthRule(r) {
+    var c = r.cc, mc = monthCfg[Number(curMonth.split('-')[1])] || {};
+    return {
+      std: Number(mc.std) || Number(c.std) || 24,
+      cv: (mc.cv != null) ? (Number(mc.cv) || 0) : (Number(c.cv) || 0)
+    };
+  }
+
+  function salesInMonth() {
+    return sales.filter(function (s) { return s.month === curMonth && curEmp && sameEmp(s.emp, curEmp); });
+  }
+
+  // Có sheet cá nhân thì lấy bán hàng từ đó, không thì dùng sheet Tiền kpi như cũ
+  function modelSource() { return hasSales ? salesInMonth() : getEmpKPIs(); }
+
+  function addSale() {
+    var model = sellDraft.model === '__other' ? String(sellDraft.other || '').trim() : sellDraft.model;
+    var qty = Math.floor(Number(sellDraft.qty));
+    var date = sellDraft.date;
+    if (!model) { sellMsg = { t: 'Chưa chọn model!', e: true }; render(); return; }
+    if (!(qty >= 1)) { sellMsg = { t: 'Số lượng phải từ 1 trở lên!', e: true }; render(); return; }
+    if (!date) { sellMsg = { t: 'Chưa chọn ngày!', e: true }; render(); return; }
+    sellMsg = { t: 'Đang lưu...', e: false };
+    render();
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (handleAuth(res)) return;
+        if (res === 'OK') {
+          sellMsg = { t: 'Đã lưu: ' + model + ' x' + qty, e: false };
+          sellDraft.model = ''; sellDraft.other = ''; sellDraft.qty = 1;
+          loadCloud();
+        } else {
+          sellMsg = { t: res, e: true };
+          render();
+        }
+      })
+      .withFailureHandler(function (e) {
+        sellMsg = { t: 'Lỗi: ' + (e && e.message ? e.message : e), e: true };
+        render();
+      })
+      .addSale(token, model, qty, date);
+  }
+
+  // Chạm vào ngày trên lịch để thêm / bỏ ngày nghỉ
+  function toggleLeave(d) {
+    if (!token) return;
+    var off = !!getEmpOffDays()[d];
+    var lbl = pad2(d) + '/' + curMonth.split('-')[1];
+    if (!confirm((off ? 'Bỏ ngày nghỉ ' : 'Đánh dấu nghỉ ngày ') + lbl + '?')) return;
+    if (off) {
+      offSheet = offSheet.filter(function (o) { return !(o.month === curMonth && o.day === d && sameEmp(o.emp, curEmp)); });
+    } else {
+      offSheet.push({ emp: curEmp, month: curMonth, day: d });
+    }
+    render();
+    $('#st').textContent = 'Đang lưu...';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (handleAuth(res)) return;
+        if (res !== 'OK') alert(res);
+        loadCloud();
+      })
+      .withFailureHandler(function () { alert('Lỗi lưu ngày nghỉ'); loadCloud(); })
+      .setLeave(token, curMonth + '-' + pad2(d), !off);
   }
 
   /* ================= GIAO DIỆN ================= */
@@ -501,6 +581,7 @@
 
     if (tab === 'cc') {
       var parts = curMonth.split('-');
+      var rule = monthRule(r);
       var numDays = new Date(parts[0], parts[1], 0).getDate();
       var firstDay = (new Date(parts[0], parts[1] - 1, 1).getDay() + 6) % 7;
 
@@ -509,7 +590,7 @@
       for (var i = 0; i < firstDay; i++) grid += '<div></div>';
 
       for (var d = 1; d <= numDays; d++) {
-        grid += '<div class="day ' + (offDays[d] ? 'off' : '') + (d > lastCountedDay() ? ' fut' : '') + '"><b>' + d + '</b></div>';
+        grid += '<div class="day ' + (offDays[d] ? 'off' : '') + (d > lastCountedDay() ? ' fut' : '') + '" onclick="toggleLeave(' + d + ')"><b>' + d + '</b></div>';
       }
 
       v.innerHTML =
@@ -519,15 +600,52 @@
             '<button class="btn-sm" onclick="loadCloud()">🔄 Đồng bộ</button>' +
           '</div>' +
           '<div class="cal">' + grid + '</div>' +
+          '<p class="mut" style="font-size:13px;margin:8px 0 0;">Chạm vào ngày để thêm hoặc bỏ ngày nghỉ.</p>' +
         '</div>' +
         '<div class="card">' +
           '<h2>Cấu hình lương</h2>' +
-          '<label class="mut">Công chuẩn (ngày)</label>' +
-          '<input type="number" value="' + r.cc.std + '" onchange="setCfg(\'std\', this.value)" style="margin-bottom:8px;">' +
-          '<label class="mut">Lương cơ bản (đ)</label>' +
-          '<input type="number" value="' + r.cc.lcb + '" onchange="setCfg(\'lcb\', this.value)" style="margin-bottom:8px;">' +
-          '<label class="mut">Chuyên cần (đ)</label>' +
-          '<input type="number" value="' + r.cc.cv + '" onchange="setCfg(\'cv\', this.value)">' +
+          '<div class="row"><span>Công chuẩn tháng ' + Number(parts[1]) + '</span><b>' + rule.std + ' ngày</b></div>' +
+          '<div class="row"><span>Lương cơ bản</span><b>' + fmt(sheetLcb || r.cc.lcb) + '</b></div>' +
+          '<div class="row"><span>Chuyên cần</span><b>' + fmt(rule.cv) + '</b></div>' +
+          '<p class="mut" style="font-size:13px;margin:6px 0 0;">Lấy từ sheet “Nhân viên” (cột LCB, tháng, số công, chuyên cần). Muốn đổi thì sửa trong Google Sheet.</p>' +
+        '</div>';
+    }
+
+    if (tab === 'sell') {
+      var mm = curMonth.split('-')[1];
+      var sList = salesInMonth().slice().sort(function (a, b) { return (Number(b.day) || 0) - (Number(a.day) || 0); });
+      var sRows = '', sTot = 0;
+      sList.forEach(function (x) {
+        sTot += Number(x.qty) || 0;
+        sRows += '<div class="row"><span>' + esc(x.model) + '<br><small class="mut">' + (x.day ? pad2(Number(x.day)) + '/' + mm : '') + '</small></span><b>x' + x.qty + '</b></div>';
+      });
+      if (sRows) {
+        sRows += '<div class="row" style="font-weight:bold;border-top:1px solid var(--line);margin-top:4px;padding-top:8px;"><span>Tổng số máy</span><b>' + sTot + '</b></div>';
+      }
+      var opts = '<option value="">-- Chọn model --</option>';
+      models.forEach(function (m) {
+        opts += '<option value="' + esc(m) + '"' + (sellDraft.model === m ? ' selected' : '') + '>' + esc(m) + '</option>';
+      });
+      opts += '<option value="__other"' + (sellDraft.model === '__other' ? ' selected' : '') + '>➕ Model khác…</option>';
+
+      v.innerHTML =
+        '<div class="card">' +
+          '<h2>Ghi bán hàng</h2>' +
+          (hasSales ? '' : '<p class="neg">Không thấy sheet tên “' + esc(curEmp) + '” trong Google Sheet nên chưa ghi được.</p>') +
+          '<div class="form-group"><label>Model</label>' +
+            '<select onchange="sellDraft.model=this.value;render();">' + opts + '</select>' +
+            (sellDraft.model === '__other' ? '<input type="text" style="margin-top:6px;" placeholder="Nhập tên model, vd: Y31d (6/128)" value="' + esc(sellDraft.other) + '" oninput="sellDraft.other=this.value">' : '') +
+          '</div>' +
+          '<div class="form-group"><label>Số lượng</label>' +
+            '<input type="number" min="1" inputmode="numeric" value="' + esc(sellDraft.qty) + '" oninput="sellDraft.qty=this.value"></div>' +
+          '<div class="form-group"><label>Ngày bán</label>' +
+            '<input type="date" value="' + esc(sellDraft.date) + '" oninput="sellDraft.date=this.value" onchange="sellDraft.date=this.value"></div>' +
+          '<button class="btn-sm" style="width:100%;padding:12px;font-size:16px;" onclick="addSale()"' + (hasSales ? '' : ' disabled') + '>Lưu bán hàng</button>' +
+          '<div class="msg ' + (sellMsg.e ? 'neg' : 'pos') + '">' + esc(sellMsg.t) + '</div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<h2>Đã bán tháng ' + curMonth + '</h2>' +
+          (sRows || '<p class="mut">Chưa có dữ liệu bán hàng trong tháng này.</p>') +
         '</div>';
     }
 
