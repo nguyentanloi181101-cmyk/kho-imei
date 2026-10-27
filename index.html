@@ -33,8 +33,6 @@ iframe{flex:1;width:100%;border:0;background:var(--bg)}
  <div class="cd" id="cfg" hidden>
   <h3>Kết nối Google Apps Script</h3>
   <input id="cu" placeholder="Link Apps Script (kết thúc bằng /exec)" autocapitalize="off">
-  <input id="ck" placeholder="Mật khẩu Kho IMEI (nếu có đặt)" autocapitalize="off">
-  <input id="cc" placeholder="Mật khẩu Thu chi (nếu có đặt)" autocapitalize="off">
   <button class="save" id="cs">Lưu</button>
   <div class="hint">Chỉ lưu trên máy này, nhập một lần. Tính công dùng mật khẩu riêng của từng nhân viên.</div>
  </div>
@@ -60,10 +58,10 @@ function route(){
     if(f.dataset.app){f.dataset.app='';f.src='about:blank'}
   }
 }
-function fillCfg(){const c=cfg();$('cu').value=c.url||'';$('ck').value=c.kho||'';$('cc').value=c.chi||''}
+function fillCfg(){const c=cfg();$('cu').value=c.url||''}
 $('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;fillCfg()};
 $('cs').onclick=()=>{
-  try{localStorage.setItem('hub_cfg',JSON.stringify({url:$('cu').value.trim(),kho:$('ck').value.trim(),chi:$('cc').value.trim()}))}catch(e){}
+  try{localStorage.setItem('hub_cfg',JSON.stringify({url:$('cu').value.trim()}))}catch(e){}
   $('cfg').hidden=true;
 };
 $('bk').onclick=()=>{location.hash=''};
