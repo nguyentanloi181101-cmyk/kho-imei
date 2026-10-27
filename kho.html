@@ -56,14 +56,7 @@ h3{font-size:15px;margin:12px 0 6px}
 .chips button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 [hidden]{display:none!important}
 </style></head><body><div class="w">
-<div class="hd"><h1>📦 Kho IMEI</h1><div class="row" style="margin:0;flex:0"><button class="b" id="rf">↻</button><button class="b" id="gear" hidden>⚙</button></div></div>
-
-<div class="cd" id="cfg" hidden>
- <h3 style="margin-top:0">Kết nối Google Sheet</h3>
- <input id="cu" placeholder="Link Apps Script (kết thúc bằng /exec)" autocapitalize="off">
- <button class="b" id="cs" style="width:100%">Lưu và kết nối</button>
- <div class="hint">Cài đặt này chỉ lưu trên máy này, cần nhập một lần.</div>
-</div>
+<div class="hd"><h1>📦 Kho IMEI</h1><div class="row" style="margin:0;flex:0"><button class="b" id="rf">↻</button></div></div>
 
 <div class="st" id="st"></div>
 <div class="tabs" id="tabs"></div>
@@ -189,8 +182,6 @@ const TABS=[['in','Nhập kho'],['out','Xuất kho'],['chk','Kiểm kho'],['find
 const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',out:'Quét khi máy rời kho (đã bán/giao đi).',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy còn thiếu.'};
 const ST={in:['Tồn kho','ok'],out:['Đã xuất','er']};
 
-/* Lấy IMEI 15 số từ nội dung mã (mã vạch, QR hoặc Data Matrix).
-   Ưu tiên chuỗi số đúng 15 chữ số, nếu không có thì lấy 15 số đầu tiên. */
 function imeiOf(t){
   const s=String(t||'');
   const exact=(s.match(/\d+/g)||[]).find(x=>x.length===15);
@@ -242,13 +233,10 @@ $('sc').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sc
 $('sc').addEventListener('input',()=>{if(/^\d{15}$/.test($('sc').value.trim()))scanIn()});
 $('kb').onclick=()=>{const s=$('sc');s.inputMode=s.inputMode==='none'?'numeric':'none';s.blur();s.focus()};
 $('rf').onclick=()=>load();
-$('gear').onclick=()=>{$('cfg').hidden=!$('cfg').hidden;const c=cfg();$('cu').value=c.url||''};
-$('cs').onclick=()=>{try{localStorage.setItem('kho_cfg',JSON.stringify({url:$('cu').value.trim()}))}catch(e){}$('cfg').hidden=true;load()};
 
 /* Camera quét liên tục + zoom */
 let stream,timer,trk,hw=0,zm=1,last='',lt=0,rd,zr,dbusy=0,ft;const cv=document.createElement('canvas');
 function stopCam(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=trk=null;$('vw').hidden=true;$('cam').textContent='📷 Quét bằng camera';$('vin').querySelector('.fr').classList.remove('hit')}
-/* Vạch đỏ -> dấu tích xanh khi nhận dạng được mã */
 function flash(){
   const f=$('vin').querySelector('.fr');
   f.classList.add('hit');clearTimeout(ft);
@@ -286,7 +274,6 @@ function pick(list){return list.map(imeiOf).find(Boolean)}
 async function tick(){
   const v=$('vd');if(dbusy||!v.videoWidth)return;dbusy=1;
   try{
-    /* chỉ đọc vùng trong khung (giữa, cao 70% để vừa cả mã vuông Data Matrix) */
     const z=hw?1:zm,w=v.videoWidth/z,h=v.videoHeight/z;
     const sx=(v.videoWidth-w)/2+w*.08,sw=w*.84,sy=(v.videoHeight-h)/2+h*.15,sh=h*.7;
     cv.width=Math.round(Math.min(1000,sw));cv.height=Math.round(cv.width*sh/sw);
@@ -345,4 +332,8 @@ function render(){
   $('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===mode?'on':''}" data-m="${t[0]}">${t[1]}</button>`).join('');
   $('log').innerHTML=log.slice(0,30).map(l=>`<div class="it ${l.c}"><b>${esc(l.i)}</b><span>${esc(l.m)}<br>${fmt(l.t)}</span></div>`).join('')||'<p class="hint">Chưa có lượt quét nào.</p>';
   if(mode==='chk'){
-    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='
+    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
+    $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div></div>
+    <h3>Máy tồn nhưng chưa quét thấy (${miss.length})</h3>${miss.slice(0,100).map(([i,r])=>item(i,r)).join('')||'<p class="hint">Không có – kho khớp.</p>'}
+    ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
+    <button class="b d" id="rc
