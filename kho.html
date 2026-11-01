@@ -69,6 +69,10 @@ h3{font-size:15px;margin:12px 0 6px}
    <select id="m1"><option value="">Chọn Model (từ Cấu hình)</option></select>
    <select id="m4"><option value="">Chọn màu</option></select>
   </div>
+  <div id="ckw" hidden>
+   <select id="k1"><option value="">Kiểm tất cả model</option></select>
+   <select id="k2" disabled><option value="">Tất cả màu</option></select>
+  </div>
   
   <input id="sc" inputmode="none" autocomplete="off" placeholder="Gõ 15 số IMEI vào đây...">
   
@@ -120,7 +124,7 @@ h3{font-size:15px;margin:12px 0 6px}
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let db={},mode='in',log=[],chk={},flt='all',busy=0,queue=[],bt0=0;
+let openCol={},db={},mode='in',log=[],chk={},flt='all',busy=0,queue=[],bt0=0;
 const cfg=()=>({url:HUB.cfg().url});
 async function api(body){return HUB.post({...body,app:'kho'})}
 
@@ -140,7 +144,7 @@ async function loadCfg(){
     cfgList=await api({a:'getCfg'});const old=$('m1').value;
     $('m1').innerHTML='<option value="">Chọn Model (từ Cấu hình)</option>'+cfgList.map(x=>`<option>${esc(x.model)}</option>`).join('');
     if(cfgList.some(x=>x.model===old))$('m1').value=old;
-    fillColors();fillFind();
+    fillColors();fillFind();fillChk();
   }catch(e){$('hint').textContent='Không tải được bảng Cấu hình: '+(e.message||e)}
 }
 $('m1').onchange=fillColors;
@@ -162,8 +166,32 @@ function fillFindColors(){
   $('f2').innerHTML='<option value="">Tất cả màu</option>'+(m?m.colors:[]).map(c=>`<option>${esc(c)}</option>`).join('');
   if(m&&m.colors.includes(old))$('f2').value=old;
 }
-$('f1').onchange=()=>{fillFindColors();renderFind()};
-$('f2').onchange=renderFind;
+$('f1').onchange=()=>{openCol={};fillFindColors();renderFind()};
+$('f2').onchange=()=>{openCol={};renderFind()};
+
+/* Kiểm kho theo model / màu */
+function fillChk(){
+  const old=$('k1').value;
+  $('k1').innerHTML='<option value="">Kiểm tất cả model</option>'+cfgList.map(x=>`<option>${esc(x.model)}</option>`).join('');
+  if(cfgList.some(x=>x.model===old))$('k1').value=old;
+  fillChkColors();
+}
+function fillChkColors(){
+  const m=cfgList.find(x=>x.model===$('k1').value),old=$('k2').value;
+  $('k2').disabled=!m;
+  $('k2').innerHTML='<option value="">Tất cả màu</option>'+(m?m.colors:[]).map(c=>`<option>${esc(c)}</option>`).join('');
+  if(m&&m.colors.includes(old))$('k2').value=old;
+}
+$('k1').onchange=()=>{fillChkColors();render()};
+$('k2').onchange=()=>render();
+function inScope(r){
+  const m=$('k1').value;if(!m)return true;
+  const k=nk(r.model);
+  const best=cfgList.map(x=>[x.model,nk(x.model)]).filter(x=>k.startsWith(x[1])).sort((a,b)=>b[1].length-a[1].length)[0];
+  if(!best||best[0]!==m)return false;
+  const c=$('k2').value;
+  return !c||k.slice(best[1].length)===nk(c);
+}
 const cnt=(a,k)=>a.filter(([,r])=>r.s===k).length;
 function renderFind(){
   const out=$('fres'),a=all(),m=$('f1').value,c=$('f2').value;
@@ -193,7 +221,10 @@ function renderFind(){
   const all2=[].concat(...sel.map(([,x])=>x.l));
   const title=m+(c?' · '+c:'');
   let h=`<div class="cd" style="text-align:center"><div class="hint">${esc(title)}</div><div style="font-size:48px;font-weight:700;color:${cnt(all2,'in')?'var(--ok)':'var(--er)'}">${cnt(all2,'in')}</div><div>cây còn tồn</div><small class="hint">Đã xuất: ${cnt(all2,'out')}</small></div>`;
-  if(!c)h+='<h3>Theo màu</h3>'+groups.map(([,x])=>`<div class="it ${cnt(x.l,'in')?'ok':'er'}"><b>${esc(x.label)}</b><span><b style="color:var(--tx);font-size:18px">${cnt(x.l,'in')}</b> cây</span></div>`).join('');
+  if(!c)h+='<h3>Theo màu (chạm để xem IMEI)</h3>'+groups.map(([k,x])=>{
+    const ins=x.l.filter(([,r])=>r.s==='in'),op=openCol[k];
+    return `<div class="it ${ins.length?'ok':'er'}" data-col="${esc(k)}" style="cursor:pointer"><b>${esc(x.label)} ${op?'▾':'▸'}</b><span><b style="color:var(--tx);font-size:18px">${ins.length}</b> cây</span></div>`+(op?(ins.map(([i,r])=>item(i,r,fmt(r.tin))).join('')||'<p class="hint">Hết hàng.</p>'):'');
+  }).join('');
   else{const ins=all2.filter(([,r])=>r.s==='in');h+=`<h3>IMEI còn tồn (${ins.length})</h3>`+(ins.slice(0,200).map(([i,r])=>item(i,r,fmt(r.tin))).join('')||'<p class="hint">Hết hàng.</p>')}
   out.innerHTML=h;
 }
@@ -201,7 +232,7 @@ const fromRec=r=>({model:r[1],s:r[2]==='sold'?'out':r[2],tin:r[3],tsold:r[4],tou
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=t=>t?new Date(t).toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const TABS=[['in','Nhập kho'],['out','Xuất kho'],['chk','Kiểm kho'],['find','Tra cứu'],['list','Danh sách']];
-const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',out:'Quét khi máy rời kho (đã bán/giao đi).',chk:'Quét toàn bộ máy đang có thực tế, sau đó xem máy còn thiếu.'};
+const HINT={in:'Máy mới vào kho. Quét liên tục, mỗi IMEI 15 số.',out:'Quét khi máy rời kho (đã bán/giao đi).',chk:'Chọn model (và màu) cần kiểm, quét các máy thực tế, sau đó xem máy còn thiếu.'};
 const ST={in:['Tồn kho','ok'],out:['Đã xuất','er']};
 
 /* =========================================================
@@ -221,6 +252,7 @@ async function load(){
 function chkProc(i){
   const r=db[i],R=(c,m)=>({c,m,i});
   if(chk[i]&&r)return R('wa','Đã quét kiểm rồi');
+  if(r&&!inScope(r))return R('wa','Không thuộc model đang kiểm: '+(r.model||'—'));
   chk[i]=1;
   if(!r)return R('er','Không có trong hệ thống');
   if(r.s==='in')return R('ok','Tồn kho – khớp');
@@ -402,6 +434,7 @@ function setMode(m){
   $('fnd').hidden=m!=='find';
   $('chk').hidden=m!=='chk';
   $('mdw').hidden=m!=='in';
+  $('ckw').hidden=m!=='chk';
   $('hint').textContent=HINT[m]||'';
   
   if(m==='chk'){chk={};log=[]}
@@ -421,7 +454,7 @@ function render(){
   $('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===mode?'on':''}" data-m="${t[0]}">${t[1]}</button>`).join('');
   $('log').innerHTML=log.slice(0,30).map(l=>`<div class="it ${l.c}"><b>${esc(l.i)}</b><span>${esc(l.m)}<br>${fmt(l.t)}</span></div>`).join('')||'<p class="hint">Chưa có lượt quét nào.</p>';
   if(mode==='chk'){
-    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
+    const miss=a.filter(([i,r])=>r.s==='in'&&!chk[i]&&inScope(r)),ok=a.filter(([i,r])=>r.s==='in'&&chk[i]&&inScope(r)).length,bad=Object.keys(chk).filter(i=>!db[i]||db[i].s==='out');
     $('chk').innerHTML=`<div class="st"><div><b style="color:var(--ok)">${ok}</b><span>Khớp</span></div><div><b style="color:var(--er)">${miss.length}</b><span>Thiếu (chưa quét)</span></div></div>
     <h3>Máy tồn nhưng chưa quét thấy (${miss.length})</h3>${miss.slice(0,100).map(([i,r])=>item(i,r)).join('')||'<p class="hint">Không có – kho khớp.</p>'}
     ${bad.length?`<h3>Bất thường (${bad.length})</h3>${bad.map(i=>`<div class="it er"><b>${i}</b><span>${db[i]?'Đã xuất mà còn máy':'Không có trong hệ thống'}</span></div>`).join('')}`:''}
@@ -436,6 +469,8 @@ function render(){
 }
 document.addEventListener('click',e=>{
   const t=e.target;
+  const col=t.closest&&t.closest('[data-col]');
+  if(col){const k=col.dataset.col;openCol[k]=!openCol[k];render();return}
   if(t.dataset.m)setMode(t.dataset.m);
   if(t.dataset.f){flt=t.dataset.f;render()}
   if(t.id==='rc'){chk={};log=[];load()}

@@ -39,6 +39,7 @@ iframe{flex:1;width:100%;border:0;background:var(--bg)}
  <a class="tile" href="#cong"><span class="e">👥</span><div><b>Tính công</b><span>Lương, chấm công, KPI, thưởng/trừ</span></div></a>
  <a class="tile" href="#kho"><span class="e">📦</span><div><b>Kho IMEI</b><span>Nhập, xuất, kiểm kho, tra cứu tồn</span></div></a>
  <a class="tile" href="#chi"><span class="e">💰</span><div><b>Thu chi</b><span>Ghi khoản thu chi, chụp hóa đơn</span></div></a>
+ <a class="tile" href="#no"><span class="e">📒</span><div><b>Sổ nợ</b><span>Ghi nợ, trừ nợ theo tên từng người</span></div></a>
 </div>
 <div id="app" hidden>
  <div class="bar"><button class="ic" id="bk">← Menu</button><b id="ttl"></b></div>
@@ -46,7 +47,7 @@ iframe{flex:1;width:100%;border:0;background:var(--bg)}
 </div>
 <script>
 const $=id=>document.getElementById(id);
-const APPS={cong:['👥 Tính công','cong.html'],kho:['📦 Kho IMEI','kho.html'],chi:['💰 Thu chi','chi.html']};
+const APPS={cong:['👥 Tính công','cong.html'],kho:['📦 Kho IMEI','kho.html'],chi:['💰 Thu chi','chi.html'],no:['📒 Sổ nợ','no.html']};
 const cfg=()=>{try{return JSON.parse(localStorage.getItem('hub_cfg')||'{}')}catch(e){return{}}};
 function route(){
   const h=location.hash.slice(1),a=APPS[h],f=$('fr');

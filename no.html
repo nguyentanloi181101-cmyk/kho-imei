@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sổ nợ</title>
+<script src="gs.js"></script>
+<script>window.google = { script: { run: HUB.run('no') } };</script>
+<style>
+  :root {
+    --bg: #f5f7f4; --card: #ffffff; --ink: #1c2b25; --muted: #6b7a73; --line: #dbe3de;
+    --accent: #0f7a5a; --accent-ink: #ffffff; --debt: #b3392f; --paid: #0f7a5a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121a17; --card: #1a2420; --ink: #e8f0ec; --muted: #8fa097; --line: #2a3832;
+      --accent: #3fbf94; --accent-ink: #08241a; --debt: #ef8a80; --paid: #3fbf94;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.45; }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
+  button { font: inherit; cursor: pointer; }
+  input { width: 100%; padding: 12px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+  input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .total small { color: var(--muted); display: block; }
+  .total strong { font-size: 34px; font-weight: 700; letter-spacing: -.5px; color: var(--debt); }
+  .add { display: flex; gap: 8px; }
+  .btn { padding: 12px 16px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 600; white-space: nowrap; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .person { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 14px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; text-align: left; }
+  .person:last-child { border-bottom: 0; }
+  .person b.d { color: var(--debt); } .person b.z { color: var(--muted); } .person b.o { color: var(--paid); }
+  .person span.n { font-weight: 600; }
+  .person small { display: block; color: var(--muted); font-weight: 400; }
+  .list { padding: 4px 12px; }
+  .empty { padding: 16px 0; color: var(--muted); }
+  .back { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; padding: 8px 12px; margin-bottom: 14px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .bal { font-size: 36px; font-weight: 700; letter-spacing: -.5px; margin: 4px 0 0; }
+  .bal.d { color: var(--debt); } .bal.o { color: var(--paid); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .seg button { padding: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--card); box-shadow: 0 0 0 1px var(--line); }
+  .seg .is-add[aria-pressed="true"] { color: var(--debt); }
+  .seg .is-sub[aria-pressed="true"] { color: var(--paid); }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 6px; }
+  .amount { font-size: 22px; font-weight: 600; }
+  .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .quick button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--ink); font-size: 14px; }
+  .save { width: 100%; margin-top: 16px; padding: 14px; }
+  #msg { min-height: 22px; margin: 10px 0 0; font-size: 14px; }
+  #msg.err { color: var(--debt); }
+  h2 { font-size: 16px; margin: 22px 0 10px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row small { color: var(--muted); display: block; }
+  .row b { white-space: nowrap; }
+  .row b.d { color: var(--debt); } .row b.o { color: var(--paid); }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- MÀN DANH SÁCH -->
+  <section id="vList">
+    <div class="card total"><small>Tổng người ta đang nợ mình</small><strong id="grand">—</strong></div>
+    <div class="card add">
+      <input id="newName" placeholder="Thêm người mới (tên)" autocomplete="off">
+      <button class="btn" id="addBtn" type="button">Thêm</button>
+    </div>
+    <h2 style="margin-top:6px">Chạm vào tên để ghi nợ / trừ nợ</h2>
+    <div class="card list" id="people"><div class="empty">Đang tải...</div></div>
+  </section>
+
+  <!-- MÀN CHI TIẾT 1 NGƯỜI -->
+  <section id="vPerson" hidden>
+    <button class="back" id="back" type="button">← Danh sách</button>
+    <h1 id="pName"></h1>
+    <div class="bal" id="pBal"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="seg" role="group" aria-label="Loại">
+        <button type="button" id="tAdd" class="is-add" aria-pressed="true">＋ Ghi nợ</button>
+        <button type="button" id="tSub" class="is-sub" aria-pressed="false">－ Trừ nợ</button>
+      </div>
+      <label for="amount">Số tiền (VND)</label>
+      <input id="amount" class="amount" inputmode="numeric" placeholder="0" autocomplete="off">
+      <div class="quick" id="quick"></div>
+      <label for="note">Ghi chú</label>
+      <input id="note" placeholder="Ví dụ: lấy ốp lưng">
+      <label for="date">Ngày</label>
+      <input id="date" type="date">
+      <button class="btn save" id="saveBtn" type="button">Ghi nợ</button>
+      <p id="msg" role="status"></p>
+    </div>
+    <h2>Lịch sử</h2>
+    <div class="card list" id="hist"></div>
+  </section>
+
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.abs(Number(n)).toLocaleString('vi-VN') + ' ₫';
+  const norm = s => String(s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+  const todayStr = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+
+  let rows = [];          // {id, date, name, type:'no'|'tru', amount, note}
+  let extraNames = [];    // người mới thêm nhưng chưa có giao dịch
+  let cur = '';           // tên đang mở
+  let type = 'no';
+
+  function people() {
+    const map = {};
+    rows.forEach(r => {
+      const k = norm(r.name);
+      if (!map[k]) map[k] = { name: r.name, bal: 0, last: '' };
+      map[k].bal += (r.type === 'tru' ? -1 : 1) * Number(r.amount);
+      if (r.date > map[k].last) map[k].last = r.date;
+    });
+    extraNames.forEach(n => { const k = norm(n); if (!map[k]) map[k] = { name: n, bal: 0, last: '' }; });
+    return Object.values(map).sort((a, b) => (b.bal > 0) - (a.bal > 0) || b.bal - a.bal || a.name.localeCompare(b.name, 'vi'));
+  }
+
+  function renderList() {
+    const ps = people();
+    const grand = ps.reduce((t, p) => t + (p.bal > 0 ? p.bal : 0), 0);
+    $('grand').textContent = fmt(grand);
+    const box = $('people');
+    if (!ps.length) { box.innerHTML = '<div class="empty">Chưa có ai. Thêm tên ở trên.</div>'; return; }
+    box.innerHTML = '';
+    ps.forEach(p => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'person';
+      const l = document.createElement('span'); l.className = 'n'; l.textContent = p.name;
+      if (p.last) { const s = document.createElement('small'); s.textContent = 'Gần nhất ' + p.last; l.appendChild(s); }
+      const a = document.createElement('b');
+      a.className = p.bal > 0 ? 'd' : p.bal < 0 ? 'o' : 'z';
+      a.textContent = p.bal > 0 ? 'Nợ ' + fmt(p.bal) : p.bal < 0 ? 'Dư ' + fmt(p.bal) : 'Hết nợ';
+      b.append(l, a);
+      b.onclick = () => openPerson(p.name);
+      box.appendChild(b);
+    });
+  }
+
+  function renderPerson() {
+    const k = norm(cur);
+    const mine = rows.filter(r => norm(r.name) === k);
+    const bal = mine.reduce((t, r) => t + (r.type === 'tru' ? -1 : 1) * Number(r.amount), 0);
+    $('pName').textContent = cur;
+    const el = $('pBal');
+    el.className = 'bal ' + (bal > 0 ? 'd' : bal < 0 ? 'o' : '');
+    el.textContent = bal > 0 ? 'Nợ ' + fmt(bal) : bal < 0 ? 'Dư ' + fmt(bal) : 'Hết nợ';
+    const h = $('hist');
+    if (!mine.length) { h.innerHTML = '<div class="empty">Chưa có giao dịch.</div>'; return; }
+    h.innerHTML = '';
+    mine.slice().sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id)).forEach(r => {
+      const d = document.createElement('div'); d.className = 'row';
+      const left = document.createElement('div');
+      const t = document.createElement('span'); t.textContent = r.note || (r.type === 'tru' ? 'Trừ nợ' : 'Ghi nợ');
+      const s = document.createElement('small'); s.textContent = r.date;
+      left.append(t, s);
+      const a = document.createElement('b');
+      a.className = r.type === 'tru' ? 'o' : 'd';
+      a.textContent = (r.type === 'tru' ? '−' : '+') + fmt(r.amount);
+      d.append(left, a);
+      h.appendChild(d);
+    });
+  }
+
+  function setType(t) {
+    type = t;
+    $('tAdd').setAttribute('aria-pressed', t === 'no');
+    $('tSub').setAttribute('aria-pressed', t === 'tru');
+    $('saveBtn').textContent = t === 'tru' ? 'Trừ nợ' : 'Ghi nợ';
+  }
+  $('tAdd').onclick = () => setType('no');
+  $('tSub').onclick = () => setType('tru');
+
+  function setMsg(t, err) { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; }
+
+  function openPerson(name) {
+    cur = name;
+    $('vList').hidden = true; $('vPerson').hidden = false;
+    $('amount').value = ''; $('note').value = ''; $('date').value = todayStr();
+    setType('no'); setMsg('');
+    renderPerson(); window.scrollTo(0, 0);
+  }
+  $('back').onclick = () => { $('vPerson').hidden = true; $('vList').hidden = false; renderList(); };
+
+  $('amount').addEventListener('input', e => {
+    const d = e.target.value.replace(/\D/g, '');
+    e.target.value = d ? Number(d).toLocaleString('vi-VN') : '';
+  });
+  [50000, 100000, 200000, 500000].forEach(v => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = Number(v).toLocaleString('vi-VN');
+    b.onclick = () => { $('amount').value = v.toLocaleString('vi-VN'); };
+    $('quick').appendChild(b);
+  });
+
+  $('addBtn').onclick = () => {
+    const n = $('newName').value.replace(/\s+/g, ' ').trim();
+    if (!n) return;
+    const exist = people().find(p => norm(p.name) === norm(n));
+    if (!exist) extraNames.push(n);
+    $('newName').value = '';
+    openPerson(exist ? exist.name : n);
+  };
+  $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('addBtn').click(); });
+
+  $('saveBtn').onclick = () => {
+    const amount = $('amount').value.replace(/\D/g, '');
+    if (!amount) { setMsg('Nhập số tiền trước khi lưu.', true); return; }
+    const payload = { name: cur, type, amount: Number(amount), note: $('note').value.trim(), date: $('date').value || todayStr() };
+    $('saveBtn').disabled = true; setMsg('Đang lưu...');
+    google.script.run
+      .withSuccessHandler(res => {
+        $('saveBtn').disabled = false;
+        rows.push(Object.assign({ id: (res && res.id) || String(Date.now()) }, payload));
+        $('amount').value = ''; $('note').value = '';
+        setMsg(type === 'tru' ? 'Đã trừ nợ.' : 'Đã ghi nợ.');
+        renderPerson();
+      })
+      .withFailureHandler(err => {
+        $('saveBtn').disabled = false;
+        setMsg('Lưu không được: ' + (err && err.message ? err.message : err), true);
+      })
+      .saveDebt(payload);
+  };
+
+  function load() {
+    google.script.run
+      .withSuccessHandler(res => {
+        rows = (res && res.rows) || [];
+        renderList();
+        if (!$('vPerson').hidden) renderPerson();
+      })
+      .withFailureHandler(err => {
+        $('people').innerHTML = '<div class="empty">Không tải được: ' + (err && err.message ? err.message : err) + '</div>';
+      })
+      .getDebts();
+  }
+  load();
+</script>
+</body>
+</html>
